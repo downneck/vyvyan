@@ -1,2 +1,5 @@
-{% for value in r['data'] %}
+{% for key, userlist in r['data'].iteritems() %}
+domain: {{key}}
+{% for value in userlist %}
 {{value}}{% endfor %}
+{% endfor %}

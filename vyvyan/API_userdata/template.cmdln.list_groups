@@ -1,2 +1,5 @@
-{% for value in r['data'] %}
+{% for key, grouplist in r['data'].iteritems() %}
+domain: {{key}}
+{% for value in grouplist %}
 {{value}}{% endfor %}
+{% endfor %}
