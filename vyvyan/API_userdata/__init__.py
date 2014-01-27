@@ -130,7 +130,7 @@ class API_userdata:
                             'home_dir': {
                                 'vartype': 'str',
                                 'desc': "user's home directory (default: %s/username)" % cfg.hdir,
-                                'ol': 'd',
+                                'ol': 'o',
                             },
                             'user_type': {
                                 'vartype': 'str',
@@ -228,7 +228,7 @@ class API_userdata:
                             'home_dir': {
                                 'vartype': 'str',
                                 'desc': "user's home directory (default: %s/username)" % cfg.hdir,
-                                'ol': 'd',
+                                'ol': 'o',
                             },
                             'user_type': {
                                 'vartype': 'str',
@@ -702,8 +702,8 @@ class API_userdata:
             # make sure we're not trying to add a duplicate, validation done in the __get_user_obj function
             u = self.__get_user_obj(username, domain)
             if u:
-                self.cfg.log.debug("API_userdata/uadd: user exists already: %s" % username)
-                raise UserdataError("API_userdata/uadd: user exists already: %s" % username)
+                self.cfg.log.debug("API_userdata/uadd: user %s exists in domain %s" % (username, domain))
+                raise UserdataError("API_userdata/uadd: user %s exists in domain %s" % (username, domain))
            
             # uid, validate or generate
             if 'uid' in query.keys() and query['uid']:

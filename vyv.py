@@ -106,128 +106,125 @@ def call_command(cfg, module_map):
         revmodule_map = swap_dict(module_map)
         module = "API_userdata"
         call = sys.argv[1]
-        if module in revmodule_map.keys() or module in module_map.keys():
-            buf = "" # our argument buffer for urlencoding
-            if module in revmodule_map.keys():
-                module = revmodule_map[module] 
-            elif 'API_'+module in module_map.keys():
-                module = 'API_'+module 
-            elif module in module_map.keys():
-                pass
-            else:
-                log.debug("Malformed module: %s" % module)
-                raise VyvyanCLIError("Malformed module: %s" % module)
-            response = requests.get('http://'+cfg.api_server+':'+cfg.api_port+'/'+module+'/metadata', auth=(cfg.api_admin_user, cfg.api_admin_pass))
-            mmeta = myjson.loads(response.content)
-            if mmeta['status'] != 0:
-                raise VyvyanCLIError("Error output:\n%s" % mmeta['msg'])
-            # map short aliases to calls
-            callmap = {}
-            for ccall in mmeta['data']['methods'].keys():
-                callmap[mmeta['data']['methods'][ccall]['short']] = ccall
-            if call in callmap.keys():
-                call = callmap[call]
-            # set up our command line options through optparse. will
-            # change this to argparse if we upgrade past python 2.7
-            if 'description' in  mmeta['data']['methods'][call]:
-                usage = "Usage: vyv %s [options]\n\n%s" % (call, mmeta['data']['methods'][call]['description'])
-            else:
-                usage = "Usage: vyv %s [options]" % (call)
-            parser = OptionParser(usage=usage)
-            arglist = {}
-            if 'args' in mmeta['data']['methods'][call]['required_args']:
-                for k in sorted(mmeta['data']['methods'][call]['required_args']['args'].keys()):
-                    if mmeta['data']['methods'][call]['required_args']['args'][k]['vartype'] != "bool":
-                        parser.add_option('-'+mmeta['data']['methods'][call]['required_args']['args'][k]['ol'],\
-                                          '--'+k, help=mmeta['data']['methods'][call]['required_args']['args'][k]['desc'])
-                        arglist[k] = mmeta['data']['methods'][call]['required_args']['args'][k]['vartype']
-                    else:
-                        parser.add_option('-'+mmeta['data']['methods'][call]['required_args']['args'][k]['ol'],\
-                                          '--'+k, help=mmeta['data']['methods'][call]['required_args']['args'][k]['desc'],\
-                                          action="store_true")
-                        arglist[k] = mmeta['data']['methods'][call]['required_args']['args'][k]['vartype']
-            if 'args' in mmeta['data']['methods'][call]['optional_args']:
-                for k in sorted(mmeta['data']['methods'][call]['optional_args']['args'].keys()):
-                    if mmeta['data']['methods'][call]['optional_args']['args'][k]['vartype'] != "bool":
-                        parser.add_option('-'+mmeta['data']['methods'][call]['optional_args']['args'][k]['ol'],\
-                                          '--'+k, help=mmeta['data']['methods'][call]['optional_args']['args'][k]['desc'])
-                        arglist[k] = mmeta['data']['methods'][call]['optional_args']['args'][k]['vartype']
-                    else:
-                        parser.add_option('-'+mmeta['data']['methods'][call]['optional_args']['args'][k]['ol'],\
-                                          '--'+k, help=mmeta['data']['methods'][call]['optional_args']['args'][k]['desc'],\
-                                          action="store_true")
-                        arglist[k] = mmeta['data']['methods'][call]['optional_args']['args'][k]['vartype']
-            if not arglist:
-                raise VyvyanCLIError("Error: no arguments defined")
-
-            # do we have any required arguments?
-            if 'args' in mmeta['data']['methods'][call]['required_args'].keys():
-                required_args = mmeta['data']['methods'][call]['required_args']['args'].keys()
-            else:
-                required_args = [] 
-
-            # parse our options and build a urlencode string to pass
-            # over to the API service
-            #
-            # spaces in URLs make vyvyan sad, so replace with %20
-            (options, args) = parser.parse_args(sys.argv[2:])
-            files = {}
-            for k in arglist.keys():
-                a = vars(options)[k]
-                # if the variable type expected by vyv_daemon is "file", we
-                # need to operate slightly differently
-                if a and k and arglist[k] == "file":
-                    files[k] = open(a)
-                # if the variable type isn't "file", jam the query onto
-                # the end of our query string buffer
-                elif a and k:
-                    if buf:
-                        buf += '&'
-                    if a != True:
-                        buf += k+'='+str(a.replace(' ', '%20'))
-                    else:
-                        buf += k
-                # if options[k] is empty and is a required option, explode
-                elif not a and k in required_args: 
-                    raise VyvyanCLIError(get_command_args(cfg, module_map))
-                # this just means's it's an unpopulated optional argument
-                else:
-                    pass
-
-            # make the call out to our API daemon, expect JSON back
-            if mmeta['data']['methods'][call]['rest_type'] == 'GET':
-                callresponse = requests.get('http://'+cfg.api_server+':'+cfg.api_port+'/'+module+'/'+call+'?'+buf, auth=(cfg.api_admin_user, cfg.api_admin_pass))
-            elif mmeta['data']['methods'][call]['rest_type'] == 'POST':
-                callresponse = requests.post('http://'+cfg.api_server+':'+cfg.api_port+'/'+module+'/'+call+'?'+buf, files=files, auth=(cfg.api_admin_user, cfg.api_admin_pass))
-            elif mmeta['data']['methods'][call]['rest_type'] == 'DELETE':
-                callresponse = requests.delete('http://'+cfg.api_server+':'+cfg.api_port+'/'+module+'/'+call+'?'+buf, auth=(cfg.api_admin_user, cfg.api_admin_pass))
-            elif mmeta['data']['methods'][call]['rest_type'] == 'PUT':
-                callresponse = requests.put('http://'+cfg.api_server+':'+cfg.api_port+'/'+module+'/'+call+'?'+buf, files=files, auth=(cfg.api_admin_user, cfg.api_admin_pass))
-            # load the JSON response into the equivalent python variable type
-            responsedata = myjson.loads(callresponse.content)
-            if responsedata['status'] != 0:
-                raise VyvyanCLIError("Error output:\n%s" % responsedata['msg'])
-
-            # close any open files 
-            if files:
-                for k in files.keys():
-                    files[k].close()
-
-            # if we get just a unicode string back, it's a status
-            # message...print it. otherwise, we got back a dict or list
-            # or something similar, fire it off at the template engine
-            # if it blows up, dump the error and the response we got
-            # from vyvyan_daemon.py
-            if isinstance(responsedata['data'], unicode):
-                print_responsedata(responsedata, mmeta, call)
-            else:
-                try:
-                    print_responsedata(responsedata, mmeta, call)
-                except Exception, e:
-                    print "Error: %s\n\n" % e
-                    print responsedata
+        buf = "" # our argument buffer for urlencoding
+        if module in revmodule_map.keys():
+            module = revmodule_map[module] 
+        elif 'API_'+module in module_map.keys():
+            module = 'API_'+module 
+        elif module in module_map.keys():
+            pass
         else:
-            raise VyvyanCLIError("Invalid module specified: %s" % sys.argv[1].split('/')[0])
+            log.debug("Malformed module: %s" % module)
+            raise VyvyanCLIError("Malformed module: %s" % module)
+        response = requests.get('http://'+cfg.api_server+':'+cfg.api_port+'/'+module+'/metadata', auth=(cfg.api_admin_user, cfg.api_admin_pass))
+        mmeta = myjson.loads(response.content)
+        if mmeta['status'] != 0:
+            raise VyvyanCLIError("Error output:\n%s" % mmeta['msg'])
+        # map short aliases to calls
+        callmap = {}
+        for ccall in mmeta['data']['methods'].keys():
+            callmap[mmeta['data']['methods'][ccall]['short']] = ccall
+        if call in callmap.keys():
+            call = callmap[call]
+        # set up our command line options through optparse. will
+        # change this to argparse if we upgrade past python 2.7
+        if 'description' in  mmeta['data']['methods'][call]:
+            usage = "Usage: vyv %s [options]\n\n%s" % (call, mmeta['data']['methods'][call]['description'])
+        else:
+            usage = "Usage: vyv %s [options]" % (call)
+        parser = OptionParser(usage=usage)
+        arglist = {}
+        if 'args' in mmeta['data']['methods'][call]['required_args']:
+            for k in sorted(mmeta['data']['methods'][call]['required_args']['args'].keys()):
+                if mmeta['data']['methods'][call]['required_args']['args'][k]['vartype'] != "bool":
+                    parser.add_option('-'+mmeta['data']['methods'][call]['required_args']['args'][k]['ol'],\
+                                      '--'+k, help=mmeta['data']['methods'][call]['required_args']['args'][k]['desc'])
+                    arglist[k] = mmeta['data']['methods'][call]['required_args']['args'][k]['vartype']
+                else:
+                    parser.add_option('-'+mmeta['data']['methods'][call]['required_args']['args'][k]['ol'],\
+                                      '--'+k, help=mmeta['data']['methods'][call]['required_args']['args'][k]['desc'],\
+                                      action="store_true")
+                    arglist[k] = mmeta['data']['methods'][call]['required_args']['args'][k]['vartype']
+        if 'args' in mmeta['data']['methods'][call]['optional_args']:
+            for k in sorted(mmeta['data']['methods'][call]['optional_args']['args'].keys()):
+                if mmeta['data']['methods'][call]['optional_args']['args'][k]['vartype'] != "bool":
+                    parser.add_option('-'+mmeta['data']['methods'][call]['optional_args']['args'][k]['ol'],\
+                                      '--'+k, help=mmeta['data']['methods'][call]['optional_args']['args'][k]['desc'])
+                    arglist[k] = mmeta['data']['methods'][call]['optional_args']['args'][k]['vartype']
+                else:
+                    parser.add_option('-'+mmeta['data']['methods'][call]['optional_args']['args'][k]['ol'],\
+                                      '--'+k, help=mmeta['data']['methods'][call]['optional_args']['args'][k]['desc'],\
+                                      action="store_true")
+                    arglist[k] = mmeta['data']['methods'][call]['optional_args']['args'][k]['vartype']
+        if not arglist:
+            raise VyvyanCLIError("Error: no arguments defined")
+
+        # do we have any required arguments?
+        if 'args' in mmeta['data']['methods'][call]['required_args'].keys():
+            required_args = mmeta['data']['methods'][call]['required_args']['args'].keys()
+        else:
+            required_args = [] 
+
+        # parse our options and build a urlencode string to pass
+        # over to the API service
+        #
+        # spaces in URLs make vyvyan sad, so replace with %20
+        (options, args) = parser.parse_args(sys.argv[2:])
+        files = {}
+        for k in arglist.keys():
+            a = vars(options)[k]
+            # if the variable type expected by vyv_daemon is "file", we
+            # need to operate slightly differently
+            if a and k and arglist[k] == "file":
+                files[k] = open(a)
+            # if the variable type isn't "file", jam the query onto
+            # the end of our query string buffer
+            elif a and k:
+                if buf:
+                    buf += '&'
+                if a != True:
+                    buf += k+'='+str(a.replace(' ', '%20'))
+                else:
+                    buf += k
+            # if options[k] is empty and is a required option, explode
+            elif not a and k in required_args: 
+                raise VyvyanCLIError(get_command_args(cfg, module_map))
+            # this just means's it's an unpopulated optional argument
+            else:
+                pass
+
+        # make the call out to our API daemon, expect JSON back
+        if mmeta['data']['methods'][call]['rest_type'] == 'GET':
+            callresponse = requests.get('http://'+cfg.api_server+':'+cfg.api_port+'/'+module+'/'+call+'?'+buf, auth=(cfg.api_admin_user, cfg.api_admin_pass))
+        elif mmeta['data']['methods'][call]['rest_type'] == 'POST':
+            callresponse = requests.post('http://'+cfg.api_server+':'+cfg.api_port+'/'+module+'/'+call+'?'+buf, files=files, auth=(cfg.api_admin_user, cfg.api_admin_pass))
+        elif mmeta['data']['methods'][call]['rest_type'] == 'DELETE':
+            callresponse = requests.delete('http://'+cfg.api_server+':'+cfg.api_port+'/'+module+'/'+call+'?'+buf, auth=(cfg.api_admin_user, cfg.api_admin_pass))
+        elif mmeta['data']['methods'][call]['rest_type'] == 'PUT':
+            callresponse = requests.put('http://'+cfg.api_server+':'+cfg.api_port+'/'+module+'/'+call+'?'+buf, files=files, auth=(cfg.api_admin_user, cfg.api_admin_pass))
+        # load the JSON response into the equivalent python variable type
+        responsedata = myjson.loads(callresponse.content)
+        if responsedata['status'] != 0:
+            raise VyvyanCLIError("Error output:\n%s" % responsedata['msg'])
+
+        # close any open files 
+        if files:
+            for k in files.keys():
+                files[k].close()
+
+        # if we get just a unicode string back, it's a status
+        # message...print it. otherwise, we got back a dict or list
+        # or something similar, fire it off at the template engine
+        # if it blows up, dump the error and the response we got
+        # from vyvyan_daemon.py
+        if isinstance(responsedata['data'], unicode):
+            print responsedata['data']
+        else:
+            try:
+                print_responsedata(responsedata, mmeta, call)
+            except Exception, e:
+                print "Error: %s\n\n" % e
+                print responsedata
     except Exception, e:
         raise VyvyanCLIError(e)
 
