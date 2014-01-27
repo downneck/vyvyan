@@ -20,10 +20,10 @@ general:
   # we allow multiple ldap domains to be configured
   # here, you can set the default domain to avoid
   # having to specify it on the command line constantly 
-  default_domain: 'localhost.localdomain'
+  default_domain: 'example.com'
 
   # default contact email address
-  contact: 'hostmaster@localhost.localdomain'
+  contact: 'user@example.com'
 
   # the HTTPBasicAuth user for informational requests (read-only)
   api_info_user: 'apicli'
@@ -48,10 +48,10 @@ logconfig:
   logfile: "vyvyan_daemon.log"
 
   # True = log to logfile above + stdout, False = just stdout
-  log_to_file: False
+  log_to_file: True
 
   # True = log to logfile above + stdout, False = just stdout
-  log_to_console: False
+  log_to_console: True
 
 
 # Database options
@@ -128,13 +128,15 @@ users_and_groups:
 # LDAP module options
 ldap:
 
-  # To enable LDAP set this to True
-  # if you enable this, make sure you set up KV records 
-  # in all your realms' master ldap server(s) for:
-  # ldap_admin_cn (usually root)
+  # set the admin CN. this is pre-populated with the 'root'
+  # user and should be the first thing you change 
+  ldap_admin_cn: 'root'
+
+  # TODO: explore how these are set
+  # previously was in KV
+  #
   # ldap_admin_pass
   # ldap_master_slapd_rootpw
-  active: False
 
   # OU for users
   users_ou: 'users'
