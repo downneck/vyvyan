@@ -822,8 +822,8 @@ class API_userdata:
         try:
             # to make our conditionals easier
             if 'username' not in query.keys() or not query['username']:
-                self.cfg.log.debug("API_userdata/API_useradata/umodify: no username.realm.site_id provided!")
-                raise UserdataError("API_userdata/API_useradata/umodify: no username.realm.site_id provided!")
+                self.cfg.log.debug("API_userdata/API_useradata/umodify: no username provided!")
+                raise UserdataError("API_userdata/API_useradata/umodify: no username provided!")
             else:
                 username = query['username']
 
@@ -834,6 +834,17 @@ class API_userdata:
                     raise UserdataError("API_userdata/umodify: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
             # check for min/max number of optional arguments
             common.check_num_opt_args(query, self.namespace, 'umodify')
+
+            # we do this here nad not below with the rest of the options because
+            # we need this set to get a valid user object
+            #
+            # domain, validate or assign default 
+            if 'domain' in query.keys() and query['domain']:
+                domain = query['domain']
+                v_domain(domain) 
+            else:
+                domain = self.cfg.default_domain
+
             # find us a username to modify, validation done in the __get_user_obj function
             u = self.__get_user_obj(username) 
             if not u:
@@ -868,16 +879,15 @@ class API_userdata:
                     if v_ssh2_pubkey(key):
                         ssh_keys.append(key)
                 u.ssh_public_key = ''.join(ssh_keys).rstrip()
-
-            # this is down here instead of up above with its buddies because we need the
-            # username to construct a home dir and email if they're not supplied 
+            # home dir, assign or leave alone 
             if 'home_dir' in query.keys() and query['home_dir']:
                 u.hdir = query['home_dir']
+            # email, assign or leave alone 
             if 'email_address' in query.keys() and query['email_address']:
                 u.email = query['email_address']
             # uid, validate or leave alone 
             if 'uid' in query.keys() and query['uid']:
-                if u.uid != int(query['uid']) and v_uid_in_db(self.cfg, int(query['uid']), u.realm, u.site_id):
+                if u.uid != int(query['uid']) and v_uid_in_db(self.cfg, int(query['uid']), u.domain):
                     self.cfg.log.debug("API_userdata/umodify: uid exists already: %s" % query['uid'])
                     raise UserdataError("API_userdata/umodify: uid exists already: %s" % query['uid'])
                 u.uid = int(query['uid'])
@@ -914,15 +924,14 @@ class API_userdata:
         try:
             # to make our conditionals easier
             if 'username' not in query.keys() or not query['username']:
-                self.cfg.log.debug("API_userdata/API_useradata/uclone: no username.realm.site_id provided!")
-                raise UserdataError("API_userdata/API_useradata/uclone: no username.realm.site_id provided!")
-            else:
-                username = query['username']
-            if 'newunqn' not in query.keys() or not query['newunqn']:
-                self.cfg.log.debug("API_userdata/API_useradata/uclone: no new realm.site_id provided!")
-                raise UserdataError("API_userdata/API_useradata/uclone: no new realm.site_id provided!")
-            else:
-                newunqn = query['newunqn']
+                self.cfg.log.debug("API_useradata/uclone: no username provided!")
+                raise UserdataError("API_useradata/uclone: no username provided!")
+            if 'domain' not in query.keys() or not query['domain']:
+                self.cfg.log.debug("API_useradata/uclone: no domain provided!")
+                raise UserdataError("API_useradata/uclone: no domain provided!")
+            if 'newdomain' not in query.keys() or not query['newdomain']:
+                self.cfg.log.debug("API_useradata/uclone: no new domain provided!")
+                raise UserdataError("API_useradata/uclone: no new domain provided!")
 
             # setting our valid query keys
             common = VyvyanCommon(self.cfg)
@@ -933,21 +942,15 @@ class API_userdata:
                     self.cfg.log.debug("API_userdata/uclone: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
                     raise UserdataError("API_userdata/uclone: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
 
-            # input validation for new realm.site_id
-            blank, nrealm, nsite_id = v_split_unqn(newunqn)
-            if nrealm and nsite_id:
-                v_realm(self.cfg, nrealm)
-                v_site_id(self.cfg, nsite_id)
-            else:
-                self.cfg.log.debug("API_userdata/uclone: newunqn must be in the format realm.site_id. newunqn: %s" % newunqn)
-                raise UserdataError("API_userdata/uclone: newunqn must be in the format realm.site_id. newunqn: %s" % newunqn)
+            # input validation for new domain
+            v_domain(self.cfg, query['domain'])
 
             # find us a username to clone, validation done in the __get_user_obj function
-            u = self.__get_user_obj(username) 
+            u = self.__get_user_obj(username, domain) 
             if u:
-                newusername = "%s.%s.%s" % (u.username, nrealm, nsite_id)
                 query = {
-                    'username': newusername,
+                    'username': username,
+                    'domain': newdomain,
                     'first_name': u.first_name,
                     'last_name': u.last_name,
                     'uid': u.uid,
@@ -958,17 +961,17 @@ class API_userdata:
                     'home_dir': u.hdir,
                 }
                 self.uadd(query)
-                self.cfg.log.debug("API_userdata/uclone: created user: %s" % newusername)
+                self.cfg.log.debug("API_userdata/uclone: created user %s in domain %s based on domain %s" % (username, newdomain, domain))
                 return "success"
             else:
-                self.cfg.log.debug("API_userdata/uclone: user not found: %s" % username)
-                raise UserdataError("API_userdata/uclone: user not found: %s" % username)
+                self.cfg.log.debug("API_userdata/uclone: user %s not found in domain %s" % (username, domain))
+                raise UserdataError("API_userdata/uclone: user %s not found in %s" % (username, domain))
+
         except Exception, e:
             # something odd happened, explode violently
             self.cfg.dbsess.rollback()
             self.cfg.log.debug("API_userdata/uclone: error: %s" % e)
             raise UserdataError("API_userdata/uclone: error: %s" % e)
-
 
 
     ##############################
@@ -991,6 +994,7 @@ class API_userdata:
             # setting our valid query keys
             common = VyvyanCommon(self.cfg)
             valid_qkeys = common.get_valid_qkeys(self.namespace, 'gdisplay')
+
             # check for wierd query keys, explode
             for qk in query.keys():
                 if qk not in valid_qkeys:
@@ -998,34 +1002,40 @@ class API_userdata:
                     raise UserdataError("API_userdata/gidsplay: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
 
             # to make our conditionals easier
-            if 'unqgn' not in query.keys() or not query['unqgn']:
-                self.cfg.log.debug("API_userdata/API_useradata/gdisplay: no groupname.realm.site_id provided!")
-                raise UserdataError("API_userdata/API_useradata/gdisplay: no groupname.realm.site_id provided!")
+            if 'groupname' not in query.keys() or not query['groupname']:
+                self.cfg.log.debug("API_userdata/API_useradata/gdisplay: no groupname provided!")
+                raise UserdataError("API_userdata/API_useradata/gdisplay: no groupname provided!")
             else:
-                unqgn = query['unqgn']
+                groupname = query['groupname']
+            # domain, validate or substitute default 
+            if 'domain' not in query.keys() or not query['domain']:
+                domain = query['domain']
+                v_domain(domain) 
+            else:
+                domain = self.cfg.default_domain
+ 
             # check for min/max number of optional arguments
             common.check_num_opt_args(query, self.namespace, 'gdisplay')
+
             # look for the group
             try:
-                g = self.__get_group_obj(unqgn) 
-            except Exception, e:
-                self.cfg.log.debug("API_userdata/gdisplay: group %s not found." % unqgn)
-                raise UserdataError("API_userdata/gdisplay: group %s not found" % unqgn)
-            # group exists, populate return
-            ret = {} 
-            if g:
+                g = self.__get_group_obj(groupname, domain) 
+                ret = {} 
                 ret['group'] = g.to_dict()
-            else:
-                self.cfg.log.debug("API_userdata/gdisplay: group %s not found." % unqgn)
-                raise UserdataError("API_userdata/gdisplay: group %s not found" % unqgn)
+            except Exception, e:
+                self.cfg.log.debug("API_userdata/gdisplay: group %s not found in domain %s." % (groupname, domain))
+                raise UserdataError("API_userdata/gdisplay: group %s not found in domain %s" % (groupname, domain ))
+
             # now that we know the group exists, we can see if it's populated with users
             ret['users'] = []
-            ulist = self.__get_users_by_group(unqgn)
+            ulist = self.__get_users_by_group(groupname, domain)
             if ulist:
                 for u in ulist:
                     ret['users'].append(u.to_dict())
+
             # return is populated, return it
             return ret
+
         except Exception, e:
             self.cfg.log.debug("API_userdata/gdisplay: %s" % e) 
             raise UserdataError("API_userdata/gdisplay: %s" % e) 
@@ -1049,11 +1059,12 @@ class API_userdata:
 
         try:
             # to make our conditionals easier
-            if 'unqgn' not in query.keys() or not query['unqgn']:
-                self.cfg.log.debug("API_userdata/API_useradata/gadd: no groupname.realm.site_id provided!")
-                raise UserdataError("API_userdata/API_useradata/gadd: no groupname.realm.site_id provided!")
+            if 'groupname' not in query.keys() or not query['groupname']:
+                self.cfg.log.debug("API_userdata/API_useradata/gadd: no groupname provided!")
+                raise UserdataError("API_userdata/API_useradata/gadd: no groupname provided!")
             else:
-                unqgn = query['unqgn']
+                groupname = query['groupname']
+                v_name(groupname)
 
 
             # check for wierd query keys, explode
@@ -1061,8 +1072,17 @@ class API_userdata:
                 if qk not in valid_qkeys:
                     self.cfg.log.debug("API_userdata/gadd: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
                     raise UserdataError("API_userdata/gadd: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
+
             # check for min/max number of optional arguments
             common.check_num_opt_args(query, self.namespace, 'gadd')
+
+            # domain, validate or default
+            if 'domain' in query.keys() and query['domain']:
+                domain = query['domain']
+                v_domain(domain)
+            else:
+                domain = self.cfg.default_domain 
+
             # description, assign or default
             if 'description' in query.keys() and query['description']:
                 description = query['description']
@@ -1077,21 +1097,11 @@ class API_userdata:
             else:
                 sudo_cmds = None
 
-            # input validation for groupname
-            groupname, realm, site_id = v_split_unqn(unqgn)
-            if groupname and realm and site_id:
-                v_name(groupname)
-                v_realm(self.cfg, realm)
-                v_site_id(self.cfg, site_id)
-            else:
-                self.cfg.log.debug("API_userdata/gadd: unqgn must be in the format groupname.realm.site_id. username: %s" % unqgn)
-                raise UserdataError("API_userdata/gadd: unqgn must be in the format groupname.realm.site_id. username: %s" % unqgn)
-
             # make sure we're not trying to add a duplicate
-            g = self.__get_group_obj(unqgn) 
+            g = self.__get_group_obj(groupname) 
             if g:
-                self.cfg.log.debug("API_userdata/gadd: group exists already: %s" % unqgn)
-                raise UserdataError("API_userdata/gadd: group exists already: %s" % unqgn)
+                self.cfg.log.debug("API_userdata/gadd: group exists already: %s" % groupname)
+                raise UserdataError("API_userdata/gadd: group exists already: %s" % groupname)
            
             # gid, validate or generate
             # this is down here instead of up above with its buddies because we need the
@@ -1099,17 +1109,18 @@ class API_userdata:
             if 'gid' in query.keys() and query['gid']:
                 gid = int(query['gid'])
                 v_gid(self.cfg, gid)
-                if v_gid_in_db(self.cfg, gid, realm, site_id):
+                if v_gid_in_db(self.cfg, gid, domain):
                     self.cfg.log.debug("API_userdata/gadd: gid exists already: %s" % gid)
                     raise UserdataError("API_userdata/gadd: gid exists already: %s" % gid)
             else:
-                gid = self.__next_available_gid(realm, site_id)
+                gid = self.__next_available_gid(domain)
 
             # create the group object, push it to the db, return status
             g = Groups(description, sudo_cmds, groupname, site_id, realm, gid)
             self.cfg.dbsess.add(g)
             self.cfg.dbsess.commit()
             return 'success'
+
         except Exception, e:
             # something odd happened, explode violently
             self.cfg.dbsess.rollback()
@@ -1131,35 +1142,45 @@ class API_userdata:
         """
         try:
             # to make our conditionals easier
-            if 'unqgn' not in query.keys() or not query['unqgn']:
-                self.cfg.log.debug("API_userdata/gdelete: no groupname.realm.site_id provided!")
-                raise UserdataError("API_userdata/gdelete: no groupname.realm.site_id provided!")
+            if 'groupname' not in query.keys() or not query['groupname']:
+                self.cfg.log.debug("API_userdata/gdelete: no groupname provided!")
+                raise UserdataError("API_userdata/gdelete: no groupname provided!")
             else:
-                unqgn = query['unqgn']
+                groupname = query['groupname']
 
             # setting our valid query keys
             common = VyvyanCommon(self.cfg)
             valid_qkeys = common.get_valid_qkeys(self.namespace, 'gdelete')
+
             # check for wierd query keys, explode
             for qk in query.keys():
                 if qk not in valid_qkeys:
                     self.cfg.log.debug("API_userdata/gdelete: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
                     raise UserdataError("API_userdata/gdelete: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
+
             # check for min/max number of optional arguments
             common.check_num_opt_args(query, self.namespace, 'gdelete')
+
+            # domain, validate or default
+            if 'domain' in query.keys() and query['domain']:
+                domain = query['domain']
+                v_domain(domain)
+            else:
+                domain = self.cfg.default_domain 
+
             # find us a groupname to delete, validation done in the __get_group_obj function
-            g = self.__get_group_obj(unqgn) 
+            g = self.__get_group_obj(groupname, domain) 
             if g:
-                if self.__get_users_by_group(unqgn):
+                if self.__get_users_by_group(groupname, domain):
                     self.cfg.log.debug("API_userdata/gdelete: please remove all users from this group before deleting!")
                     raise UserdataError("API_userdata/gdelete: please remove all users from this group before deleting!")
                 self.cfg.dbsess.delete(g)
                 self.cfg.dbsess.commit()
-                self.cfg.log.debug("API_userdata/gdelete: deleted group: %s" % unqgn)
+                self.cfg.log.debug("API_userdata/gdelete: deleted group %s from domain %s" % (groupname, domain))
                 return "success"
             else:
-                self.cfg.log.debug("API_userdata/gdelete: group not found: %s" % unqgn)
-                raise UserdataError("API_userdata/gdelete: group not found: %s" % unqgn)
+                self.cfg.log.debug("API_userdata/gdelete: group %s not found in domain %s" % (groupname, domain))
+                raise UserdataError("API_userdata/gdelete: group %s not found in domain %s" % (groupname, domain))
 
         except Exception, e:
             # something odd happened, explode violently
@@ -1186,24 +1207,33 @@ class API_userdata:
 
         try:
             # to make our conditionals easier
-            if 'unqgn' not in query.keys() or not query['unqgn']:
-                self.cfg.log.debug("API_userdata/gmodify: no groupname.realm.site_id provided!")
-                raise UserdataError("API_userdata/gmodify: no groupname.realm.site_id provided!")
+            if 'groupname' not in query.keys() or not query['groupname']:
+                self.cfg.log.debug("API_userdata/gmodify: no groupname provided!")
+                raise UserdataError("API_userdata/gmodify: no groupname provided!")
             else:
-                unqgn = query['unqgn']
+                groupname = query['groupname']
 
             # check for wierd query keys, explode
             for qk in query.keys():
                 if qk not in valid_qkeys:
                     self.cfg.log.debug("API_userdata/gmodify: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
                     raise UserdataError("API_userdata/gmodify: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
+
             # check for min/max number of optional arguments
             common.check_num_opt_args(query, self.namespace, 'gmodify')
+
+            # domain, validate or default
+            if 'domain' in query.keys() and query['domain']:
+                domain = query['domain']
+                v_domain(domain)
+            else:
+                domain = self.cfg.default_domain 
+
             # find us a groupname to modify, validation done in the __get_group_obj function
-            g = self.__get_group_obj(unqgn) 
+            g = self.__get_group_obj(groupname, domain) 
             if not g:
-                self.cfg.log.debug("API_userdata/gmodify: refusing to modify nonexistent group: %s" % unqgn)
-                raise UserdataError("API_userdata/gmodify: refusing to modify nonexistent group: %s" % unqgn)
+                self.cfg.log.debug("API_userdata/gmodify: refusing to modify nonexistent group %s in domain %s" % (groupname, domain))
+                raise UserdataError("API_userdata/gmodify: refusing to modify nonexistent group %s in domain %s" % (groupname, domain))
            
             # description, assign or leave alone
             if 'description' in query.keys() and query['description']:
@@ -1217,15 +1247,16 @@ class API_userdata:
 
             # gid, validate or leave alone 
             if 'gid' in query.keys() and query['gid']:
-                if g.gid != int(query['gid']) and v_gid_in_db(self.cfg, int(query['gid']), g.realm, g.site_id):
-                    self.cfg.log.debug("API_userdata/gmodify: gid exists already: %s" % query['gid'])
-                    raise UserdataError("API_userdata/gmodify: gid exists already: %s" % query['gid'])
+                if g.gid != int(query['gid']) and v_gid_in_db(self.cfg, int(query['gid']), g.domain):
+                    self.cfg.log.debug("API_userdata/gmodify: gid exists in domain %s already: %s" % (domain, query['gid']))
+                    raise UserdataError("API_userdata/gmodify: gid exists in domain %s already: %s" % (domain, query['gid']))
                 g.gid = int(query['gid'])
 
             # push the modified group object to the db, return status
             self.cfg.dbsess.add(g)
             self.cfg.dbsess.commit()
             return 'success'
+
         except Exception, e:
             # something odd happened, explode violently
             self.cfg.dbsess.rollback()
@@ -1247,16 +1278,15 @@ class API_userdata:
         """
         try:
             # to make our conditionals easier
-            if 'unqgn' not in query.keys() or not query['unqgn']:
-                self.cfg.log.debug("API_userdata/gclone: no groupname.realm.site_id provided!")
-                raise UserdataError("API_userdata/gclone: no groupname.realm.site_id provided!")
-            else:
-                unqgn = query['unqgn']
-            if 'newunqn' not in query.keys() or not query['newunqn']:
-                self.cfg.log.debug("API_userdata/gclone: no new realm.site_id provided!")
-                raise UserdataError("API_userdata/gclone: no new realm.site_id provided!")
-            else:
-                newunqn = query['newunqn']
+            if 'groupname' not in query.keys() or not query['groupname']:
+                self.cfg.log.debug("API_userdata/gclone: no groupname provided!")
+                raise UserdataError("API_userdata/gclone: no groupname provided!")
+            if 'domain' not in query.keys() or not query['domain']:
+                self.cfg.log.debug("API_userdata/gclone: no domain provided!")
+                raise UserdataError("API_userdata/gclone: no domain provided!")
+            if 'newdomain' not in query.keys() or not query['newdomain']:
+                self.cfg.log.debug("API_userdata/gclone: no new domain provided!")
+                raise UserdataError("API_userdata/gclone: no new domain provided!")
 
             # setting our valid query keys
             common = VyvyanCommon(self.cfg)
@@ -1267,31 +1297,26 @@ class API_userdata:
                     self.cfg.log.debug("API_userdata/gclone: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
                     raise UserdataError("API_userdata/gclone: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
 
-            # input validation for new realm.site_id
-            blank, nrealm, nsite_id = v_split_unqn(newunqn)
-            if nrealm and nsite_id:
-                v_realm(self.cfg, nrealm)
-                v_site_id(self.cfg, nsite_id)
-            else:
-                self.cfg.log.debug("API_userdata/gclone: newunqn must be in the format realm.site_id. newunqn: %s" % newunqn)
-                raise UserdataError("API_userdata/gclone: newunqn must be in the format realm.site_id. newunqn: %s" % newunqn)
+            # input validation for new domain
+            v_domain(self.cfg, domain)
 
             # find us a groupname to clone, validation done in the __get_group_obj function
-            g = self.__get_group_obj(unqgn) 
+            g = self.__get_group_obj(groupname, domain) 
             if g:
-                newunqgn = "%s.%s.%s" % (g.groupname, nrealm, nsite_id)
                 query = {
-                    'unqgn': newunqgn,
+                    'groupname': groupname,
+                    'domain': newdomain,
                     'gid': g.gid,
                     'sudo_cmds': g.sudo_cmds,
                     'description': g.description,
                 }
                 self.gadd(query) 
-                self.cfg.log.debug("API_userdata/gclone: created group: %s.%s" % (newg.groupname, newunqn))
+                self.cfg.log.debug("API_userdata/gclone: created group %s in domain %s" % (groupname, newdomain))
                 return "success"
             else:
-                self.cfg.log.debug("API_userdata/gclone: group not found: %s" % unqgn)
-                raise UserdataError("API_userdata/gclone: group not found: %s" % unqgn)
+                self.cfg.log.debug("API_userdata/gclone: group %s not found in domain %s" % (groupname, domain))
+                raise UserdataError("API_userdata/gclone: group %s not found in domain %s" % (groupname, domain))
+
         except Exception, e:
             # something odd happened, explode violently
             self.cfg.dbsess.rollback()
@@ -1333,19 +1358,23 @@ class API_userdata:
             # setting our valid query keys
             common = VyvyanCommon(self.cfg)
             valid_qkeys = common.get_valid_qkeys(self.namespace, 'utog')
+
             # check for wierd query keys, explode
             for qk in query.keys():
                 if qk not in valid_qkeys:
                     self.cfg.log.debug("API_userdata/utog: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
                     raise UserdataError("API_userdata/tog: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
+
             # check for min/max number of optional arguments
             common.check_num_opt_args(query, self.namespace, 'utog')
+
             # domain, validate or assign
             if 'domain' not in query.keys() or not query['domain']:
                 domain = query['domain']
                 v_domain(domain)
             else:
                 domain = self.cfg.default_domain                
+
             # fetch our user and group
             u = self.__get_user_obj(query['username'], domain)
             g = self.__get_group_obj(query['groupname'], domain)
@@ -1365,6 +1394,7 @@ class API_userdata:
                 self.cfg.dbsess.add(ugmap)
                 self.cfg.dbsess.commit()
                 return 'success'
+
         except Exception, e:
             # something odd happened, explode violently
             self.cfg.dbsess.rollback()
@@ -1387,8 +1417,8 @@ class API_userdata:
         try:
             # to make our conditionals easier
             if 'username' not in query.keys() or not query['username']:
-                self.cfg.log.debug("API_userdata/utog: no username.realm.site_id provided!")
-                raise UserdataError("API_userdata/utog: no username.realm.site_id provided!")
+                self.cfg.log.debug("API_userdata/utog: no username provided!")
+                raise UserdataError("API_userdata/utog: no username provided!")
             if 'groupname' not in query.keys() or not query['groupname']:
                 self.cfg.log.debug("API_userdata/utog: no group provided!")
                 raise UserdataError("API_userdata/utog: no group provided!")
@@ -1396,32 +1426,47 @@ class API_userdata:
             # setting our valid query keys
             common = VyvyanCommon(self.cfg)
             valid_qkeys = common.get_valid_qkeys(self.namespace, 'urmg')
+
             # check for wierd query keys, explode
             for qk in query.keys():
                 if qk not in valid_qkeys:
                     self.cfg.log.debug("API_userdata/utog: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
                     raise UserdataError("API_userdata/tog: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
+
             # check for min/max number of optional arguments
             common.check_num_opt_args(query, self.namespace, 'urmg')
-            # fetch our user and group
-            u = self.__get_user_obj(query['username'])
-            g = self.__get_group_obj("%s.%s.%s" % (query['groupname'], u.realm, u.site_id))
-            if not u:
-                self.cfg.log.debug("API_userdata/utog: user not found: %s" % query['username'])
-                raise UserdataError("API_userdata/utog: user not found: %s" % query['username'])
-            elif not g:
-                self.cfg.log.debug("API_userdata/utog: group not found: %s.%s.%s" % (query['groupname'], u.realm, u.site_id))
-                raise UserdataError("API_userdata/utog: group not found: %s.%s.%s" % (query['groupname'], u.realm, u.site_id))
+
+            # domain, validate or default
+            if 'domain' in query.keys() and query['domain']:
+                domain = query['domain']
+                v_domain(domain)
             else:
+                domain = self.cfg.default_domain 
+
+            # fetch our user and group
+            u = self.__get_user_obj(query['username'], domain)
+            g = self.__get_group_obj(query['groupname'], domain)
+
+            # explode if things are missing
+            if not u:
+                self.cfg.log.debug("API_userdata/utog: user %s not found in domain %s" % (query['username'], domain))
+                raise UserdataError("API_userdata/utog: user %s not found in domain %s" % (query['username'], domain))
+            elif not g:
+                self.cfg.log.debug("API_userdata/utog: group %s not found in domain %s" % (query['groupname'], domain))
+                raise UserdataError("API_userdata/utog: group %s not found in domain %s" % (query['groupname'], domain))
+            else:
+                # get the mapping entry
                 ugmap = self.cfg.dbsess.query(UserGroupMapping).\
                 filter(UserGroupMapping.users_id==u.id).\
                 filter(UserGroupMapping.groups_id==g.id).first()
                 if not ugmap:
                     self.cfg.log.debug("API_userdata/utog: mapping does not exist")
                     raise UserdataError("API_userdata/utog: mapping does not exist")
+                # rm it
                 self.cfg.dbsess.delete(ugmap)
                 self.cfg.dbsess.commit()
                 return 'success'
+
         except Exception, e:
             # something odd happened, explode violently
             self.cfg.dbsess.rollback()
@@ -1436,18 +1481,21 @@ class API_userdata:
     def __get_group_obj(self, groupname, domain):
         """
         [description]
-        for a given unqgn, fetch the group object 
+        for a given groupname, fetch the group object 
     
         [parameter info]
         required:
-            unqgn: the groupname we want to parse
+            groupname: the groupname we want to parse
     
         [return value]
         returns a Groups ORM object or None
         """
-        try: 
+        try:
+            # validate things 
             v_name(groupname)
             v_domain(domain)
+
+            # go get our group
             g = self.cfg.dbsess.query(Groups).\
             filter(Groups.groupname==groupname).\
             filter(Groups.domain==domain).first()
@@ -1456,6 +1504,7 @@ class API_userdata:
                 return g
             else:
                 return None 
+
         except Exception, e:
             raise UserdataError("API_userdata/__get_group_obj: error: %s" % e)
 
@@ -1473,9 +1522,12 @@ class API_userdata:
         [return value]
         returns a Users ORM object or None
         """
-        try: 
+        try:
+            # validate stuff 
             v_name(username)
             v_domain(domain)
+
+            # go get our user
             u = self.cfg.dbsess.query(Users).\
             filter(Users.username==username).\
             filter(Users.domain==domain).first()
@@ -1484,6 +1536,7 @@ class API_userdata:
                 return u
             else:
                 return None 
+
         except Exception, e:
             raise UserdataError("API_userdata/__get_group_obj: error: %s" % e)
 
@@ -1520,8 +1573,8 @@ class API_userdata:
             # get sudo groups for all tags in kv
             if kvs:
                 for kv in kvs:
-                    unqgn = kv['value']+'_sudo.'+s.realm+'.'+s.site_id
-                    g = self.__get_group_obj(unqgn)
+                    groupname = kv['value']+'_sudo.'+s.realm+'.'+s.site_id
+                    g = self.__get_group_obj(groupname)
                     if g:
                         groups.append(g)
                     else:
@@ -1547,6 +1600,7 @@ class API_userdata:
                 return sudoers
             else:
                 return None
+
         except Exception, e:
             raise UserdataError("API_userdata/_gen_sudoers_groups: %s" % e)
 
@@ -1563,17 +1617,25 @@ class API_userdata:
         [return value]
         returns an integer representing the next available UID
         """
-        try: 
+        try:
+            # get the first allowable uid 
             i = self.cfg.uid_start
             uidlist = []
+
+            # fetch all existing users
             u = self.cfg.dbsess.query(Users).\
             filter(Users.domain==domain).all()
+
+            # add all known uids to a list
             for userentry in u:
                 uidlist.append(userentry.uid)
             uidlist.sort(key=int)
+
+
+            # if we don't have any users in the users table
+            # return the default first uid as configured in the yaml
+            # otherwise, pick the next open uid and return it
             if not uidlist:
-                # if we don't have any users in the users table
-                # return the default first uid as configured in the yaml
                 return self.cfg.uid_start
             else:
                 for uu in uidlist:
@@ -1587,6 +1649,7 @@ class API_userdata:
                         self.cfg.log.debug("API_userdata/__next_available_uid: No available UIDs!")
                         raise UserdataError("API_userdata/__next_available_uid: No available UIDs!")
                 return i
+
         except Exception, e:
             raise UserdataError("API_userdata/__next_available_uid: %s" % e)
 
@@ -1604,16 +1667,24 @@ class API_userdata:
         returns an integer representing the next available GID
         """
         try: 
+            # get the first allowable gid 
             i = self.cfg.gid_start
             gidlist = []
+
+            # fetch all existing groups 
             g = self.cfg.dbsess.query(Groups).\
             filter(Groups.domain==domain).all()
+
+            # add all known uids to a list
             for groupentry in g:
                 gidlist.append(groupentry.gid)
             gidlist.sort(key=int)
+
+
+            # if we don't have any groups in the groups table
+            # return the default first gid as configured in the yaml
+            # otherwise pick the next open gid and return it
             if not gidlist:
-                # if we don't have any groups in the groups table
-                # return the default first gid as configured in the yaml
                 return self.cfg.gid_start
             else:
                 for gg in gidlist:
@@ -1627,6 +1698,7 @@ class API_userdata:
                         self.cfg.log.debug("API_userdata/__next_available_gid: No available GIDs!")
                         raise UserdataError("API_userdata/__next_available_gid: No available GIDs!")
                 return i
+
         except Exception, e:
             raise UserdataError("API_userdata/__next_available_gid: %s" % e)
 
@@ -1645,18 +1717,24 @@ class API_userdata:
         returns a list of Groups ORMobjects or nothing 
         """
         try:
+            # fetch our user
             glist = []
             u = self.__get_user_obj(username, domain)
             if not u:
                 self.cfg.log.debug("API_userdata/__get_groups_by_user: user not found: %s" % username)
                 raise UserdataError("API_userdata/__get_groups_by_user: user not found: %s" % username)
+
+            # get all groups to which the user is mapped
             maplist = []
             maplist = self.cfg.dbsess.query(UserGroupMapping).\
                 filter(UserGroupMapping.users_id==u.id).all()
+
+            # add each group mapped to the user to a list, return it
             if maplist:
                 for map in maplist:
                     glist.append(self.cfg.dbsess.query(Groups).filter(Groups.id==map.groups_id).first())
             return glist
+
         except Exception, e:
             raise UserdataError("API_userdata/__get_groups_by_user: %s" % e)
 
@@ -1675,18 +1753,24 @@ class API_userdata:
         returns a list of Groups ORMobjects or nothing 
         """
         try:
+            # fetch our group
             ulist = []
             g = self.__get_group_obj(groupname, domain)
             if not g:
                 self.cfg.log.debug("API_userdata/__get_users_by_group: group %s not found in %s" % (groupname, domain))
                 raise UserdataError("API_userdata/__get_groups_by_user: group %s not found in %s" % (groupname, domain))
+
+            # get all users mapped to this group
             maplist = []
             maplist = self.cfg.dbsess.query(UserGroupMapping).\
                 filter(UserGroupMapping.groups_id==g.id).all()
+
+            # add each user mapped to the group to a list, return it
             if maplist:
                 for map in maplist:
                     ulist.append(self.cfg.dbsess.query(Users).filter(Users.id==map.users_id).first())
             return ulist
+
         except Exception, e:
             raise UserdataError("API_userdata/__get_users_by_group: %s" % e)
 
