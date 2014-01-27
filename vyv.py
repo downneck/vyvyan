@@ -104,9 +104,9 @@ def get_command_args(cfg, module_map):
 def call_command(cfg, module_map):
     try:
         revmodule_map = swap_dict(module_map)
-        module = "userdata"
+        module = "API_userdata"
         call = sys.argv[1]
-        if module in revmodule_map.keys() or 'API_'+module in module_map.keys() or module in module_map.keys():
+        if module in revmodule_map.keys() or module in module_map.keys():
             buf = "" # our argument buffer for urlencoding
             if module in revmodule_map.keys():
                 module = revmodule_map[module] 
@@ -130,9 +130,9 @@ def call_command(cfg, module_map):
             # set up our command line options through optparse. will
             # change this to argparse if we upgrade past python 2.7
             if 'description' in  mmeta['data']['methods'][call]:
-                usage = "Usage: vyv %s/%s [options]\n\n%s" % (module, call, mmeta['data']['methods'][call]['description'])
+                usage = "Usage: vyv %s [options]\n\n%s" % (call, mmeta['data']['methods'][call]['description'])
             else:
-                usage = "Usage: vyv %s/%s [options]" % (module, call)
+                usage = "Usage: vyv %s [options]" % (call)
             parser = OptionParser(usage=usage)
             arglist = {}
             if 'args' in mmeta['data']['methods'][call]['required_args']:
@@ -217,12 +217,12 @@ def call_command(cfg, module_map):
             # message...print it. otherwise, we got back a dict or list
             # or something similar, fire it off at the template engine
             # if it blows up, dump the error and the response we got
-            # from vyv_daemon.py
+            # from vyvyan_daemon.py
             if isinstance(responsedata['data'], unicode):
-                print responsedata['data']
+                print_responsedata(responsedata, mmeta, call)
             else:
                 try:
-                    print_responsedata(responsedata, mmeta)
+                    print_responsedata(responsedata, mmeta, call)
                 except Exception, e:
                     print "Error: %s\n\n" % e
                     print responsedata
@@ -234,7 +234,7 @@ def call_command(cfg, module_map):
 
 # prints out response data, according to a jinja2 template defined in
 # the module
-def print_responsedata(responsedata, mmeta):
+def print_responsedata(responsedata, mmeta, call):
     """
     prints out response data according to a jinja2 template
     defined in the module directory
@@ -251,12 +251,12 @@ def print_responsedata(responsedata, mmeta):
         # user know what the error message was 
         print responsedata['msg']
     elif responsedata['data']:
-        module = mmeta['request'].split('/metadata')[0].split('/')[1]
+        module = 'API_userdata' 
         env = Environment(loader=FileSystemLoader('vyvyan/'+module))
         try:
             # try to load up a template called template.cmdln.<call>
             # this allows us to format output specifically to each call
-            template = env.get_template("template.cmdln.%s" % sys.argv[1].split('/')[1])
+            template = env.get_template("template.cmdln.%s" % call)
             print template.render(r=responsedata)
         except TemplateNotFound:
             # template.cmdln.<call> apparently doesn't exist. load the default template

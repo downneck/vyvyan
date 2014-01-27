@@ -1,6 +1,6 @@
 
 username, uid, type:     {{r['data']['user']['username']}}, {{r['data']['user']['uid']}}, {{r['data']['user']['type']}}
-realm.site_id:           {{r['data']['user']['realm']}}.{{r['data']['user']['site_id']}}
+domain:                  {{r['data']['user']['domain']}}
 name:                    {{r['data']['user']['first_name']}} {{r['data']['user']['last_name']}}
 active:                  {{r['data']['user']['active']}}
 home dir:                {{r['data']['user']['hdir']}}
