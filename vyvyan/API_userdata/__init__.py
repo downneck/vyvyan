@@ -738,7 +738,6 @@ class API_userdata:
             self.cfg.log.debug("API_userdata/uadd: error: %s" % e)
             raise UserdataError("API_userdata/uadd: error: %s" % e)
 
-# DONE TO HERE
 
     def udelete(self, query):
         """
@@ -755,34 +754,46 @@ class API_userdata:
         try:
             # to make our conditionals easier
             if 'username' not in query.keys() or not query['username']:
-                self.cfg.log.debug("API_userdata/API_useradata/udelete: no username.realm.site_id provided!")
-                raise UserdataError("API_userdata/API_useradata/udelete: no username.realm.site_id provided!")
+                self.cfg.log.debug("API_userdata/API_useradata/udelete: no username provided!")
+                raise UserdataError("API_userdata/API_useradata/udelete: no username provided!")
             else:
                 username = query['username']
+                v_name(username)
 
             # setting our valid query keys
             common = VyvyanCommon(self.cfg)
             valid_qkeys = common.get_valid_qkeys(self.namespace, 'udelete')
+
             # check for wierd query keys, explode
             for qk in query.keys():
                 if qk not in valid_qkeys:
                     self.cfg.log.debug("API_userdata/udelete: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
                     raise UserdataError("API_userdata/udelete: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
+
             # check for min/max number of optional arguments
             common.check_num_opt_args(query, self.namespace, 'udelete')
+
+            # domain, validate or assign default 
+            if 'domain' in query.keys() and query['domain']:
+                domain = query['domain']
+                v_domain(domain) 
+            else:
+                domain = self.cfg.default_domain
+
             # find us a username to delete, validation done in the __get_user_obj function
-            u = self.__get_user_obj(username) 
+            u = self.__get_user_obj(username, domain) 
             if u:
-                if self.__get_groups_by_user(username):
+                if self.__get_groups_by_user(username, domain):
+                    # TODO: autoremove user from groups
                     self.cfg.log.debug("API_userdata/udelete: please remove user from all groups before deleting!")
                     raise UserdataError("API_userdata/udelete: please remove user from all groups before deleting!")
                 self.cfg.dbsess.delete(u)
                 self.cfg.dbsess.commit()
-                self.cfg.log.debug("API_userdata/udelete: deleted user: %s" % username)
+                self.cfg.log.debug("API_userdata/udelete: deleted user %s from domain %s" % (username, domain))
                 return "success"
             else:
-                self.cfg.log.debug("API_userdata/udelete: user not found: %s" % username)
-                raise UserdataError("API_userdata/udelete: user not found: %s" % username)
+                self.cfg.log.debug("API_userdata/udelete: user %s not found in domain %s" % (username, domain))
+                raise UserdataError("API_userdata/udelete: user %s not found in domain %s" % (username, domain))
 
         except Exception, e:
             # something odd happened, explode violently
@@ -790,6 +801,7 @@ class API_userdata:
             self.cfg.log.debug("API_userdata/udelete: error: %s" % e)
             raise UserdataError("API_userdata/udelete: error: %s" % e)
 
+# DONE TO HERE
 
     def umodify(self, query, files=None):
         """
@@ -1335,7 +1347,6 @@ class API_userdata:
             else:
                 domain = self.cfg.default_domain                
             # fetch our user and group
-#MARK
             u = self.__get_user_obj(query['username'], domain)
             g = self.__get_group_obj(query['groupname'], domain)
             if not u:

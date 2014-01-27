@@ -281,9 +281,8 @@ if __name__ == "__main__":
 
     # prevent root from running vyv
     if sys.stdin.isatty():
-        if os.getlogin() == 'root':
-            print "Please do not run vyv as root"
-            raise VyvyanCLIError("Your effective uid: " + os.geteuid())
+        if os.geteuid() == 0:
+            raise VyvyanCLIError("Please do not run vyv as root. Your effective uid: %s" % os.geteuid())
 
     # write out the command line we were called with to an audit log
     try:
