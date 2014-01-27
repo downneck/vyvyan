@@ -6,4 +6,6 @@ combine list_values functionality into userdata module
 
 rewrite sudoers mapping now that we don't have any servers in the DB. maybe. maybe rethink it
 
+autoremove users from groups upon user removal
+
 NOTE: LOOK FOR "DONE TO HERE" IN API_userdata/__init__.py
