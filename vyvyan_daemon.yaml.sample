@@ -97,10 +97,6 @@ users_and_groups:
   # Default shell. /bin/bash seems to be reasonable
   shell: '/bin/bash'
 
-  # Default email domain, will have <username> prepended
-  # eg. email_domain: "example.com" will yield username@example.com
-  email_domain: 'example.com'
-
   # Start of the reserved UID range
   # only change this if you REALLY know what you're doing
   uid_start: '500'

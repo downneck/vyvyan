@@ -256,6 +256,7 @@ def callable_path(pname, callpath):
         files = []
         for kkkk in filesdata.keys():
             files.append(filesdata[kkkk].file)
+        log.debug(cfg.module_metadata)
         pnameMetadata = cfg.module_metadata[pname]
         cfg.log.debug("query keys: %s" % query.keys())
         # every API module has a 'metadata' construct

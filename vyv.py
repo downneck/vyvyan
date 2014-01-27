@@ -45,52 +45,30 @@ def swap_dict(odict):
     return dict([(v, k) for (k, v) in odict.iteritems()])
 
 
-# if someone runs: vyv 
-def get_submodules(cfg, module_map):
-    try:
-        buf = "Available submodules:\n\n"
-        for i in sorted(module_map.keys()):
-            response = requests.get('http://'+cfg.api_server+':'+cfg.api_port+'/'+i+'/metadata', auth=(cfg.api_admin_user, cfg.api_admin_pass))
-            mmeta = myjson.loads(response.content)
-            if mmeta['status'] != 0:
-                raise VyvyanCLIError("Error output:\n%s" % mmeta['msg'])
-            buf += "%s (%s): %s" % (module_map[i], i.split('API_')[1], mmeta['data']['config']['description'])
-            buf += "\n"
-        buf += "\nRun \"vyv <submodule>\" for more information"
-        return buf
-    except Exception, e:
-        raise VyvyanCLIError("Error: %s" % e)
-
-
-# if someone runs: vyv <module>
+# if someone runs: vyv
 def get_commands(cfg, module_map):
     try:
-        revmodule_map = swap_dict(module_map)
-        if sys.argv[1] in revmodule_map.keys():
-            response = requests.get('http://'+cfg.api_server+':'+cfg.api_port+'/'+revmodule_map[sys.argv[1]]+'/metadata', auth=(cfg.api_admin_user, cfg.api_admin_pass))
-        elif 'API_'+sys.argv[1] in module_map.keys():
-            response = requests.get('http://'+cfg.api_server+':'+cfg.api_port+'/'+'API_'+sys.argv[1]+'/metadata', auth=(cfg.api_admin_user, cfg.api_admin_pass))
-        elif sys.argv[1] in module_map.keys():
-            response = requests.get('http://'+cfg.api_server+':'+cfg.api_port+'/'+sys.argv[1]+'/metadata', auth=(cfg.api_admin_user, cfg.api_admin_pass))
+        response = requests.get('http://'+cfg.api_server+':'+cfg.api_port+'/'+'API_userdata/metadata', auth=(cfg.api_admin_user, cfg.api_admin_pass))
         mmeta = myjson.loads(response.content)
         buf = ""
         if mmeta['status'] != 0:
             raise VyvyanCLIError("Error output:\n%s" % mmeta['msg'])
         buf += "Available module commands:\n\n"
         for k in sorted(mmeta['data']['methods'].keys()):
-            buf += "%s/%s (%s) - %s" % (sys.argv[1], mmeta['data']['methods'][k]['short'], k, mmeta['data']['methods'][k]['description'])
+            buf += "%s (%s) - %s" % (mmeta['data']['methods'][k]['short'], k, mmeta['data']['methods'][k]['description'])
             buf += "\n"
-        buf += "\nRun \"vyv <submodule>/<command>\" for more information"
+        buf += "\nRun \"vyv <command>\" for more information"
         return buf
     except Exception, e:
         raise VyvyanCLIError("Error: %s" % e)
 
 
-# if someone runs: vyv <module>/<command>
+# if someone runs: vyv <command>
 def get_command_args(cfg, module_map):
     try:
         revmodule_map = swap_dict(module_map)
-	module, call = sys.argv[1].split('/')
+	module = "userdata"
+        call = sys.argv[1]
         if module in revmodule_map.keys():
             response = requests.get('http://'+cfg.api_server+':'+cfg.api_port+'/'+revmodule_map[module]+'/metadata', auth=(cfg.api_admin_user, cfg.api_admin_pass))
         elif 'API_'+module in module_map.keys():
@@ -127,11 +105,12 @@ def get_command_args(cfg, module_map):
         raise VyvyanCLIError(e)
 
 
-# if someone runs: vyv <module>/<command> --option1=bleh -o2 foo
+# if someone runs: vyv <command> --option1=bleh -o2 foo
 def call_command(cfg, module_map):
     try:
         revmodule_map = swap_dict(module_map)
-        module, call = sys.argv[1].split('/')
+        module = "userdata"
+        call = sys.argv[1]
         if module in revmodule_map.keys() or 'API_'+module in module_map.keys() or module in module_map.keys():
             buf = "" # our argument buffer for urlencoding
             if module in revmodule_map.keys():
@@ -335,22 +314,11 @@ if __name__ == "__main__":
 
     # doin stuff
     try:
-        # grab a list of loaded modules from the API server
-        response = requests.get('http://'+cfg.api_server+':'+cfg.api_port+'/modules', auth=(cfg.api_admin_user, cfg.api_admin_pass))
-        # decode the response into a dict
-        response_dict = myjson.loads(response.content)
-        # check the status on our JSON response. 0 == good, anything
-        # else == bad. expect error information in the 'msg' payload
-        if response_dict['status'] != 0:
-            log.debug("Error output:\n%s" % response_dict['msg'])
-            raise VyvyanCLIError("Error output:\n%s" % response_dict['msg'])
         # if it didn't blow up, populate the module list
-        module_list = response_dict['data']
         module_map = {}
-        for i in module_list:
-            response = requests.get('http://'+cfg.api_server+":"+cfg.api_port+'/'+i+'/metadata', auth=(cfg.api_admin_user, cfg.api_admin_pass))
-            response_dict = myjson.loads(response.content)
-            module_map[i] = response_dict['data']['config']['shortname']
+        response = requests.get('http://'+cfg.api_server+":"+cfg.api_port+'/API_userdata/metadata', auth=(cfg.api_admin_user, cfg.api_admin_pass))
+        response_dict = myjson.loads(response.content)
+        module_map[i] = response_dict['data']['config']['shortname']
         # a reverse module map, useful in constructing our cmdln
         revmodule_map = swap_dict(module_map)
 
@@ -359,26 +327,31 @@ if __name__ == "__main__":
         #
         # user ran: vyv
         if len(sys.argv) < 2:
-            log.debug("get_submodules called()")
-            print get_submodules(cfg, module_map)
-        # user ran: vyv <valid module>
-        elif len(sys.argv) == 2 and (sys.argv[1] in module_map.values() or sys.argv[1] in module_map.keys() or 'API_'+sys.argv[1] in module_map.keys()):
             log.debug("get_commands called()")
             print get_commands(cfg, module_map)
-        # user ran: vyv <valid module>/<valid command>
-        elif len(sys.argv) == 2 and (sys.argv[1].split('/')[0] in module_map.values() or sys.argv[1].split('/')[0] in module_map.keys() or 'API_'+sys.argv[1].split('/')[0] in module_map.keys()):
+
+        # user ran: vyv <valid module>
+        elif len(sys.argv) == 2 and (sys.argv[1] in module_map.keys() or sys.argv[1] in module_map.values()):
             log.debug("get_command_args called()")
             print get_command_args(cfg, module_map)
+
+        # user ran: vyv <valid command>
+        elif len(sys.argv) == 2 and (sys.argv[1].split('/')[0] in module_map.values() or sys.argv[1].split('/')[0] in module_map.keys() or 'API_'+sys.argv[1].split('/')[0] in module_map.keys()):
+            pass
+
         # user ran: vyv <invalid module>/<command>
         elif len(sys.argv) == 2 and (sys.argv[1].split('/')[0] not in module_map.values() and sys.argv[1].split('/')[0] not in module_map.keys() and 'API_'+sys.argv[1].split('/')[0] not in module_map.keys()):
             raise VyvyanCLIError("Requested module does not exist: %s" % "API_"+sys.argv[1].split('/')[0])
+
         # user ran: vyv <invalid module>
         elif len(sys.argv) == 2 and (sys.argv[1] not in module_map.values() and sys.argv[1] not in module_map.keys() and 'API_'+sys.argv[1] not in module_map.keys()):
             raise VyvyanCLIError("Requested module does not exist: %s" % "API_"+sys.argv[1])
+
         # user ran: vyv <valid module>/<command> --valid=args -a
         elif len(sys.argv) >= 3:
             log.debug("call_command called()")
             call_command(cfg, module_map)
+
         # user ran some real ugly crap.
         else:
             raise VyvyanCLIError("bad command line:\n%s" % " ".join(sys.argv))
