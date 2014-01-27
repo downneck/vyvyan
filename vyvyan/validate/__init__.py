@@ -32,7 +32,7 @@ class ValidationError(Exception):
     pass
 
 # Validates domain input data
-def v_domain(cfg, domain):
+def v_domain(domain):
     """
     [description]
     validates domain input data (probably not necessary)

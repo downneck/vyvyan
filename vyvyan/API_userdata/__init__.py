@@ -59,6 +59,8 @@ class API_userdata:
                         },
                     },
                     'optional_args': {
+                        'min': 0,
+                        'max': 1,
                         'args': {
                             'domain': {
                                 'vartype': 'str',
@@ -161,6 +163,8 @@ class API_userdata:
                         },
                     },
                     'optional_args': {
+                        'min': 0,
+                        'max': 1,
                         'args': {
                             'domain': {
                                 'vartype': 'str',
@@ -292,6 +296,8 @@ class API_userdata:
                         },
                     },
                     'optional_args': {
+                        'min': 0,
+                        'max': 1,
                         'args': {
                             'domain': {
                                 'vartype': 'str',
@@ -367,6 +373,8 @@ class API_userdata:
                         },
                     },
                     'optional_args': {
+                        'min': 0,
+                        'max': 1,
                         'args': {
                             'domain': {
                                 'vartype': 'str',
@@ -473,6 +481,8 @@ class API_userdata:
                         },
                     },
                     'optional_args': {
+                        'min': 0,
+                        'max': 1,
                         'args': {
                             'domain': {
                                 'vartype': 'str',
@@ -505,6 +515,8 @@ class API_userdata:
                         },
                     },
                     'optional_args': {
+                        'min': 0,
+                        'max': 1,
                         'args': {
                             'domain': {
                                 'vartype': 'str',
@@ -739,7 +751,7 @@ class API_userdata:
             raise UserdataError("API_userdata/uadd: error: %s" % e)
 
 
-    def udelete(self, query):
+    def uremove(self, query):
         """
         [description]
         delete a user from the users table
@@ -754,24 +766,24 @@ class API_userdata:
         try:
             # to make our conditionals easier
             if 'username' not in query.keys() or not query['username']:
-                self.cfg.log.debug("API_userdata/API_useradata/udelete: no username provided!")
-                raise UserdataError("API_userdata/API_useradata/udelete: no username provided!")
+                self.cfg.log.debug("API_userdata/API_useradata/uremove: no username provided!")
+                raise UserdataError("API_userdata/API_useradata/uremove: no username provided!")
             else:
                 username = query['username']
                 v_name(username)
 
             # setting our valid query keys
             common = VyvyanCommon(self.cfg)
-            valid_qkeys = common.get_valid_qkeys(self.namespace, 'udelete')
+            valid_qkeys = common.get_valid_qkeys(self.namespace, 'uremove')
 
             # check for wierd query keys, explode
             for qk in query.keys():
                 if qk not in valid_qkeys:
-                    self.cfg.log.debug("API_userdata/udelete: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
-                    raise UserdataError("API_userdata/udelete: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
+                    self.cfg.log.debug("API_userdata/uremove: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
+                    raise UserdataError("API_userdata/uremove: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
 
             # check for min/max number of optional arguments
-            common.check_num_opt_args(query, self.namespace, 'udelete')
+            common.check_num_opt_args(query, self.namespace, 'uremove')
 
             # domain, validate or assign default 
             if 'domain' in query.keys() and query['domain']:
@@ -785,21 +797,21 @@ class API_userdata:
             if u:
                 if self.__get_groups_by_user(username, domain):
                     # TODO: autoremove user from groups
-                    self.cfg.log.debug("API_userdata/udelete: please remove user from all groups before deleting!")
-                    raise UserdataError("API_userdata/udelete: please remove user from all groups before deleting!")
+                    self.cfg.log.debug("API_userdata/uremove: please remove user from all groups before deleting!")
+                    raise UserdataError("API_userdata/uremove: please remove user from all groups before deleting!")
                 self.cfg.dbsess.delete(u)
                 self.cfg.dbsess.commit()
-                self.cfg.log.debug("API_userdata/udelete: deleted user %s from domain %s" % (username, domain))
+                self.cfg.log.debug("API_userdata/uremove: deleted user %s from domain %s" % (username, domain))
                 return "success"
             else:
-                self.cfg.log.debug("API_userdata/udelete: user %s not found in domain %s" % (username, domain))
-                raise UserdataError("API_userdata/udelete: user %s not found in domain %s" % (username, domain))
+                self.cfg.log.debug("API_userdata/uremove: user %s not found in domain %s" % (username, domain))
+                raise UserdataError("API_userdata/uremove: user %s not found in domain %s" % (username, domain))
 
         except Exception, e:
             # something odd happened, explode violently
             self.cfg.dbsess.rollback()
-            self.cfg.log.debug("API_userdata/udelete: error: %s" % e)
-            raise UserdataError("API_userdata/udelete: error: %s" % e)
+            self.cfg.log.debug("API_userdata/uremove: error: %s" % e)
+            raise UserdataError("API_userdata/uremove: error: %s" % e)
 
 # DONE TO HERE
 
@@ -846,7 +858,7 @@ class API_userdata:
                 domain = self.cfg.default_domain
 
             # find us a username to modify, validation done in the __get_user_obj function
-            u = self.__get_user_obj(username) 
+            u = self.__get_user_obj(username, domain) 
             if not u:
                 self.cfg.log.debug("API_userdata/umodify: refusing to modify nonexistent user: %s" % username)
                 raise UserdataError("API_userdata/umodify: refusing to modify nonexistent user: %s" % username)
@@ -1007,8 +1019,9 @@ class API_userdata:
                 raise UserdataError("API_userdata/API_useradata/gdisplay: no groupname provided!")
             else:
                 groupname = query['groupname']
+
             # domain, validate or substitute default 
-            if 'domain' not in query.keys() or not query['domain']:
+            if 'domain' in query.keys() and query['domain']:
                 domain = query['domain']
                 v_domain(domain) 
             else:
@@ -1024,7 +1037,7 @@ class API_userdata:
                 ret['group'] = g.to_dict()
             except Exception, e:
                 self.cfg.log.debug("API_userdata/gdisplay: group %s not found in domain %s." % (groupname, domain))
-                raise UserdataError("API_userdata/gdisplay: group %s not found in domain %s" % (groupname, domain ))
+                raise UserdataError("API_userdata/gdisplay: group %s not found in domain %s" % (groupname, domain))
 
             # now that we know the group exists, we can see if it's populated with users
             ret['users'] = []
@@ -1077,6 +1090,7 @@ class API_userdata:
             common.check_num_opt_args(query, self.namespace, 'gadd')
 
             # domain, validate or default
+            self.cfg.log.debug("default_domain: %s" % self.cfg.default_domain)
             if 'domain' in query.keys() and query['domain']:
                 domain = query['domain']
                 v_domain(domain)
@@ -1098,14 +1112,14 @@ class API_userdata:
                 sudo_cmds = None
 
             # make sure we're not trying to add a duplicate
-            g = self.__get_group_obj(groupname) 
+            g = self.__get_group_obj(groupname, domain) 
             if g:
                 self.cfg.log.debug("API_userdata/gadd: group exists already: %s" % groupname)
                 raise UserdataError("API_userdata/gadd: group exists already: %s" % groupname)
            
             # gid, validate or generate
             # this is down here instead of up above with its buddies because we need the
-            # realm and site_id to query for existing uids
+            # domain to query for existing uids
             if 'gid' in query.keys() and query['gid']:
                 gid = int(query['gid'])
                 v_gid(self.cfg, gid)
@@ -1116,7 +1130,7 @@ class API_userdata:
                 gid = self.__next_available_gid(domain)
 
             # create the group object, push it to the db, return status
-            g = Groups(description, sudo_cmds, groupname, site_id, realm, gid)
+            g = Groups(description, sudo_cmds, groupname, domain, gid)
             self.cfg.dbsess.add(g)
             self.cfg.dbsess.commit()
             return 'success'
@@ -1128,7 +1142,7 @@ class API_userdata:
             raise UserdataError("API_userdata/gadd: error: %s" % e)
 
 
-    def gdelete(self, query):
+    def gremove(self, query):
         """
         [description]
         delete a group from the groups table
@@ -1143,23 +1157,23 @@ class API_userdata:
         try:
             # to make our conditionals easier
             if 'groupname' not in query.keys() or not query['groupname']:
-                self.cfg.log.debug("API_userdata/gdelete: no groupname provided!")
-                raise UserdataError("API_userdata/gdelete: no groupname provided!")
+                self.cfg.log.debug("API_userdata/gremove: no groupname provided!")
+                raise UserdataError("API_userdata/gremove: no groupname provided!")
             else:
                 groupname = query['groupname']
 
             # setting our valid query keys
             common = VyvyanCommon(self.cfg)
-            valid_qkeys = common.get_valid_qkeys(self.namespace, 'gdelete')
+            valid_qkeys = common.get_valid_qkeys(self.namespace, 'gremove')
 
             # check for wierd query keys, explode
             for qk in query.keys():
                 if qk not in valid_qkeys:
-                    self.cfg.log.debug("API_userdata/gdelete: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
-                    raise UserdataError("API_userdata/gdelete: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
+                    self.cfg.log.debug("API_userdata/gremove: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
+                    raise UserdataError("API_userdata/gremove: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
 
             # check for min/max number of optional arguments
-            common.check_num_opt_args(query, self.namespace, 'gdelete')
+            common.check_num_opt_args(query, self.namespace, 'gremove')
 
             # domain, validate or default
             if 'domain' in query.keys() and query['domain']:
@@ -1172,21 +1186,21 @@ class API_userdata:
             g = self.__get_group_obj(groupname, domain) 
             if g:
                 if self.__get_users_by_group(groupname, domain):
-                    self.cfg.log.debug("API_userdata/gdelete: please remove all users from this group before deleting!")
-                    raise UserdataError("API_userdata/gdelete: please remove all users from this group before deleting!")
+                    self.cfg.log.debug("API_userdata/gremove: please remove all users from this group before deleting!")
+                    raise UserdataError("API_userdata/gremove: please remove all users from this group before deleting!")
                 self.cfg.dbsess.delete(g)
                 self.cfg.dbsess.commit()
-                self.cfg.log.debug("API_userdata/gdelete: deleted group %s from domain %s" % (groupname, domain))
+                self.cfg.log.debug("API_userdata/gremove: deleted group %s from domain %s" % (groupname, domain))
                 return "success"
             else:
-                self.cfg.log.debug("API_userdata/gdelete: group %s not found in domain %s" % (groupname, domain))
-                raise UserdataError("API_userdata/gdelete: group %s not found in domain %s" % (groupname, domain))
+                self.cfg.log.debug("API_userdata/gremove: group %s not found in domain %s" % (groupname, domain))
+                raise UserdataError("API_userdata/gremove: group %s not found in domain %s" % (groupname, domain))
 
         except Exception, e:
             # something odd happened, explode violently
             self.cfg.dbsess.rollback()
-            self.cfg.log.debug("API_userdata/gdelete: error: %s" % e)
-            raise UserdataError("API_userdata/gdelete: error: %s" % e)
+            self.cfg.log.debug("API_userdata/gremove: error: %s" % e)
+            raise UserdataError("API_userdata/gremove: error: %s" % e)
 
 
     def gmodify(self, query, files=None):
@@ -1369,7 +1383,7 @@ class API_userdata:
             common.check_num_opt_args(query, self.namespace, 'utog')
 
             # domain, validate or assign
-            if 'domain' not in query.keys() or not query['domain']:
+            if 'domain' in query.keys() and query['domain']:
                 domain = query['domain']
                 v_domain(domain)
             else:
@@ -1574,7 +1588,7 @@ class API_userdata:
             if kvs:
                 for kv in kvs:
                     groupname = kv['value']+'_sudo.'+s.realm+'.'+s.site_id
-                    g = self.__get_group_obj(groupname)
+                    g = self.__get_group_obj(groupname, domain)
                     if g:
                         groups.append(g)
                     else:
