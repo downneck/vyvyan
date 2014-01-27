@@ -75,7 +75,7 @@ class Groups(Base):
         self.description = description
         self.sudo_cmds = sudo_cmds
         self.groupname = groupname
-        self.domain
+        self.domain = domain
         self.gid = gid
 
     def __repr__(self):
