@@ -62,10 +62,16 @@ class API_userdata:
                             },
                         },
                     },
-                    'return': [
-                        'username',
-                        'username',
-                    ],
+                    'return': {
+                        'domain': [
+                            'username',
+                            'username',
+                        ],
+                        'domain': [
+                            'username',
+                            'username',
+                        ],
+                    },
                 },
                 'list_groups': {
                     'description': 'list groups',
@@ -85,10 +91,16 @@ class API_userdata:
                             },
                         },
                     },
-                    'return': [
-                        'groupname',
-                        'groupname',
-                    ],
+                    'return': {
+                        'domain': [
+                            'groupname',
+                            'groupname',
+                        ],
+                        'domain': [
+                            'groupname',
+                            'groupname',
+                        ],
+                    },
                 },
                 'list_domains': {
                     'description': 'list domains',
