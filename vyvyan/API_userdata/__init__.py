@@ -44,6 +44,66 @@ class API_userdata:
                 },
             },
             'methods': {
+                'list_users': {
+                    'description': 'list users',
+                    'short': 'lsu',
+                    'rest_type': 'GET',
+                    'admin_only': False,
+                    'required_args': {
+                    },
+                    'optional_args': {
+                        'min': 0,
+                        'max': 1,
+                        'args': {
+                            'domain': {
+                                'vartype': 'str',
+                                'desc': 'domain of the user',
+                                'ol': 'd',
+                            },
+                        },
+                    },
+                    'return': [
+                        'username',
+                        'username',
+                    ],
+                },
+                'list_groups': {
+                    'description': 'list groups',
+                    'short': 'lsg',
+                    'rest_type': 'GET',
+                    'admin_only': False,
+                    'required_args': {
+                    },
+                    'optional_args': {
+                        'min': 0,
+                        'max': 1,
+                        'args': {
+                            'domain': {
+                                'vartype': 'str',
+                                'desc': 'domain of the user',
+                                'ol': 'd',
+                            },
+                        },
+                    },
+                    'return': [
+                        'groupname',
+                        'groupname',
+                    ],
+                },
+                'list_domains': {
+                    'description': 'list domains',
+                    'short': 'lsd',
+                    'rest_type': 'GET',
+                    'admin_only': False,
+                    'required_args': {
+                    },
+                    'optional_args': {
+                    },
+                    'return': [
+                        'domain',
+                        'domain',
+                    ],
+                },
                 'udisplay': {
                     'description': 'display a user\'s info',
                     'short': 'ud',
