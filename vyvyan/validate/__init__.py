@@ -45,12 +45,9 @@ def v_domain(cfg, domain):
     [return value]
     True/False based on success of validation
     """
-
-    if domain == cfg.domain:
-        return True
-    else:
-        raise ValidationError("validate/v_domain: invalid domain: %s" % domain) 
-
+    # TODO: write some actual validation
+    return True
+    
 
 # Validates ssh2 pubkeys
 def v_ssh2_pubkey(key):

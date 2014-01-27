@@ -3,3 +3,5 @@ replace the concept of realm.site_id with domain to be more LDAPy
 collapse modular setup down into just user functionality
 
 combine list_values functionality into userdata module
+
+NOTE: LOOK FOR "DONE TO HERE" IN API_userdata/__init__.py
