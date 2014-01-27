@@ -37,8 +37,8 @@ class API_userdata:
         self.namespace = 'API_userdata'
         self.metadata = {
             'config': {
-                'shortname': 'ud',
                 'description': 'allows for the creation and manipulation of users and groups within vyvyan',
+                'shortname': 'ud',
                 'module_dependencies': {
                     'common': 1,
                 },
@@ -46,7 +46,7 @@ class API_userdata:
             'methods': {
                 'udisplay': {
                     'description': 'display a user\'s info',
-                    'short': 'udi',
+                    'short': 'ud',
                     'rest_type': 'GET',
                     'admin_only': False,
                     'required_args': {
@@ -93,11 +93,11 @@ class API_userdata:
                     },
                     'optional_args': {
                         'min': 0,
-                        'max': 8,
+                        'max': 9,
                         'args': {
                             'domain': {
                                 'vartype': 'str',
-                                'desc': "LDAP domain to add user under (default: username@%s)" % cfg.email_domain,
+                                'desc': "LDAP domain to add user under (default: username@%s)" % cfg.default_domain,
                                 'ol': 'd',
                             },
                             'first_name': {
@@ -122,7 +122,7 @@ class API_userdata:
                             },
                             'email_address': {
                                 'vartype': 'str',
-                                'desc': "user's email address (default: username@%s)" % cfg.email_domain,
+                                'desc': "user's email address (default: username@%s)" % cfg.default_domain,
                                 'ol': 'e',
                             },
                             'home_dir': {
@@ -146,9 +146,9 @@ class API_userdata:
                         'string': 'success',
                     },
                 },
-                'udelete': {
+                'uremove': {
                     'description': 'delete a user entry from the users table',
-                    'short': 'ude',
+                    'short': 'urm',
                     'rest_type': 'DELETE',
                     'admin_only': True, 
                     'required_args': {
@@ -189,7 +189,7 @@ class API_userdata:
                     },
                     'optional_args': {
                         'min': 1,
-                        'max': 9,
+                        'max': 10,
                         'args': {
                             'domain': {
                                 'vartype': 'str',
@@ -218,7 +218,7 @@ class API_userdata:
                             },
                             'email_address': {
                                 'vartype': 'str',
-                                'desc': "user's email address (default: username@%s)" % cfg.email_domain,
+                                'desc': "user's email address (default: username@%s)" % cfg.default_domain,
                                 'ol': 'e',
                             },
                             'home_dir': {
@@ -258,6 +258,7 @@ class API_userdata:
                                 'vartype': 'str',
                                 'desc': 'username of the user to clone from',
                                'ol': 'u',
+                            },
                             'domain': {
                                 'vartype': 'str',
                                 'desc': 'domain to clone the user from',
@@ -278,7 +279,7 @@ class API_userdata:
                 },
                 'gdisplay': {
                     'description': 'display a group\'s info',
-                    'short': 'gdi',
+                    'short': 'gd',
                     'rest_type': 'GET',
                     'admin_only': False,
                     'required_args': {
@@ -323,7 +324,7 @@ class API_userdata:
                     },
                     'optional_args': {
                         'min': 0,
-                        'max': 3,
+                        'max': 4,
                         'args': {
                             'domain': {
                                 'vartype': 'str',
@@ -351,9 +352,9 @@ class API_userdata:
                         'string': 'success',
                     },
                 },
-                'gdelete': {
+                'gremove': {
                     'description': 'delete a group entry from the groups table',
-                    'short': 'gde',
+                    'short': 'grm',
                     'rest_type': 'DELETE',
                     'admin_only': True, 
                     'required_args': {
@@ -394,7 +395,7 @@ class API_userdata:
                     },
                     'optional_args': {
                         'min': 1,
-                        'max': 3,
+                        'max': 4,
                         'args': {
                             'domain': {
                                 'vartype': 'str',
@@ -517,8 +518,7 @@ class API_userdata:
                     },
                 },
             },
-        },
-    }
+        }
 
 
     #############################
@@ -691,7 +691,7 @@ class API_userdata:
             if 'email_address' in query.keys() and query['email_address']:
                 email_address = query['email_address']
             else:
-                email_address = "%s@%s" % (username, self.cfg.email_domain) 
+                email_address = "%s@%s" % (username, self.cfg.default_domain) 
             # uid, validate or generate
             # this is down here instead of up above with its buddies because we need the
             # realm and site_id to query for existing uids

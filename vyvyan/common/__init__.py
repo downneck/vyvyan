@@ -141,8 +141,11 @@ class VyvyanLogger(object):
         Change the logger level on the fly. Usually you want do that for replace
         the log level defined in the config file.
         """
-        logger = logging.getLogger(logger)
-        logger.setLevel(level)
+        try:
+            logger = logging.getLogger(logger)
+            logger.setLevel(level)
+        except Exception, e:
+            raise VyvyanCommonError("Error changing log level: %s" % e)
 
 
     # Wrapper helper functions around the logger class
