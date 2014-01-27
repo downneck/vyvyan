@@ -1540,15 +1540,14 @@ class API_userdata:
             raise UserdataError("API_userdata/_gen_sudoers_groups: %s" % e)
 
 
-    def __next_available_uid(self, realm, site_id):
+    def __next_available_uid(self, domain):
         """
         [description]
         searches the db for existing UIDS and picks the next available UID within the parameters configured in vyvyan.yaml
     
         [parameter info]
         required:
-            realm: the realm we're checking uids for
-            site_id: the site_id we're checking uids for
+            domain: the domain we're checking uids for
     
         [return value]
         returns an integer representing the next available UID
@@ -1557,8 +1556,7 @@ class API_userdata:
             i = self.cfg.uid_start
             uidlist = []
             u = self.cfg.dbsess.query(Users).\
-            filter(Users.realm==realm).\
-            filter(Users.site_id==site_id).all()
+            filter(Users.domain==domain).all()
             for userentry in u:
                 uidlist.append(userentry.uid)
             uidlist.sort(key=int)
@@ -1582,15 +1580,14 @@ class API_userdata:
             raise UserdataError("API_userdata/__next_available_uid: %s" % e)
 
 
-    def __next_available_gid(self, realm, site_id):
+    def __next_available_gid(self, domain):
         """
         [description]
         searches the db for existing GIDS and picks the next available GID within the parameters configured in vyvyan.yaml
     
         [parameter info]
         required:
-            realm: the realm we're checking gids for
-            site_id: the site_id we're checking gids for
+            domain: the domain we're checking gids for
     
         [return value]
         returns an integer representing the next available GID
@@ -1599,8 +1596,7 @@ class API_userdata:
             i = self.cfg.gid_start
             gidlist = []
             g = self.cfg.dbsess.query(Groups).\
-            filter(Groups.realm==realm).\
-            filter(Groups.site_id==site_id).all()
+            filter(Groups.domain==domain).all()
             for groupentry in g:
                 gidlist.append(groupentry.gid)
             gidlist.sort(key=int)
@@ -1623,7 +1619,8 @@ class API_userdata:
         except Exception, e:
             raise UserdataError("API_userdata/__next_available_gid: %s" % e)
 
-    def __get_groups_by_user(self, username):
+
+    def __get_groups_by_user(self, username, domain):
         """
         [description]
         searches the db for user-group mappings by username 
@@ -1631,13 +1628,14 @@ class API_userdata:
         [parameter info]
         required:
             username: the username to search for 
+            domain: the domain to search in 
     
         [return value]
         returns a list of Groups ORMobjects or nothing 
         """
         try:
             glist = []
-            u = self.__get_user_obj(username)
+            u = self.__get_user_obj(username, domain)
             if not u:
                 self.cfg.log.debug("API_userdata/__get_groups_by_user: user not found: %s" % username)
                 raise UserdataError("API_userdata/__get_groups_by_user: user not found: %s" % username)
@@ -1652,24 +1650,25 @@ class API_userdata:
             raise UserdataError("API_userdata/__get_groups_by_user: %s" % e)
 
 
-    def __get_users_by_group(self, unqgn):
+    def __get_users_by_group(self, groupname, domain):
         """
         [description]
         searches the db for user-group mappings by groupname 
     
         [parameter info]
         required:
-            unqgn: the groupname to search for 
+            groupname: the groupname to search for 
+            domain: the domain to search in 
     
         [return value]
         returns a list of Groups ORMobjects or nothing 
         """
         try:
             ulist = []
-            g = self.__get_group_obj(unqgn)
+            g = self.__get_group_obj(groupname, domain)
             if not g:
-                self.cfg.log.debug("API_userdata/__get_users_by_group: group not found: %s" % unqgn)
-                raise UserdataError("API_userdata/__get_groups_by_user: group not found: %s" % unqgn)
+                self.cfg.log.debug("API_userdata/__get_users_by_group: group %s not found in %s" % (groupname, domain))
+                raise UserdataError("API_userdata/__get_groups_by_user: group %s not found in %s" % (groupname, domain))
             maplist = []
             maplist = self.cfg.dbsess.query(UserGroupMapping).\
                 filter(UserGroupMapping.groups_id==g.id).all()
