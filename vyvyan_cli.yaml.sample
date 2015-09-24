@@ -1,0 +1,59 @@
+---
+# Copyright 2015 WebEffects, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+# General config options
+general:
+ 
+  # fqdn/fqun construction happens in this section
+  # a fqdn in vyvyan is: server.realm.site_id.domain.tld
+  # ex: ns1.qa.sfo.localhost.localdomain
+  # a fqun in vyvyan is: username.realm.site_id.domain.tld
+  # ex: dkovach.prod.area51.mywebsite.com
+
+  # Set this to the location of your api server (usually it's localhost)
+  api_server: 'localhost'
+
+  # the HTTPBasicAuth user for admin requests (read-write)
+  # this should match whatever is in the equivalent line
+  # in your vyvyan_daemon.yaml
+  api_admin_user: 'vlad'
+
+  # the HTTPBasicAuth user for admin requests (read-write)
+  # this should match whatever is in the equivalent line
+  # in your vyvyan_daemon.yaml
+  api_admin_pass: '8IVxXI3C'
+
+# log config options
+logconfig:
+
+  # log directory, default is /var/log/vyvyan
+  logdir: '/var/log/vyvyan'
+
+  # logfile to write our main log to. defaults to vyvyan.log
+  logfile: 'vyvyan_cli.log'
+
+  # whether to log to logfile or not 
+  log_to_file: False
+
+  # whether to log to logfile or not 
+  log_to_console: False
+
+  # logging level. default is DEBUG. options are:
+  # DEBUG, ERROR, WARNING, INFO 
+  log_level: "DEBUG"
+
+  # audit log filename, default is vyvyan_audit.log
+  audit_log_file: 'vyvyan_audit.log'
