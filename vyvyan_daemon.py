@@ -30,8 +30,6 @@ httpservice = bottle.Bottle()
 # suck in our configure object
 cfg = configure.VyvyanConfigureDaemon('vyvyan_daemon.yaml')
 cfg.load_config()
-# why is this?? maybe a leftover? commented out on 20120710 -dk
-#cm = VyvyanCommon(cfg)
 
 
 # generic vyvyan exception type

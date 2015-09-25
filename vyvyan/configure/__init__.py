@@ -24,6 +24,7 @@ import yaml
 # Extra modules
 import xmlrpclib
 import sqlalchemy
+import sqlalchemy.orm
 
 # our error class
 class ConfigureError(Exception):
@@ -196,102 +197,6 @@ class VyvyanConfigureDaemon(VyvyanConfigure):
         except Exception, e:
             raise ConfigureError("Database configuration error. dbtuple: %s, engine: %s. Error: %s" % (dbtuple, engine, e))
 
-        # Cobbler related settings
-        cobconfig = all_configs['cobbler']
-        # Only ping cobbler server if configured to
-        self.coblive = False
-        if cobconfig.has_key('active'):
-            self.coblive = cobconfig['active']
-        if self.coblive:
-            try:
-                self.remote = xmlrpclib.Server('http://%s/cobbler_api' % cobconfig['host'])
-                self.token = self.remote.login(cobconfig['user'], cobconfig['pass'])
-            except Exception, e:
-                sys.stderr.write("Cobbler configuration error.  Check cobbler API server. Error: %s" % e)
-        else:
-            self.cobremote = 'API: set remote = xmlrpclib.Server(\'http://server/cobbler_api\')'
-            self.cobtoken = 'API: set token = remote.login(user, pass)'
-
-        # Power related settings
-        pwrconfig = all_configs['power']
-        # username for power calls
-        if 'user' in pwrconfig and pwrconfig['user']:
-            self.puser = pwrconfig['user']
-        else:
-            self.puser = 'api'
-        # password for power calls
-        if 'pass' in pwrconfig and pwrconfig['pass']:
-            self.ppass = pwrconfig['pass']
-        else:
-            self.ppass = 'api'
-
-        # DRAC related settings
-        draconfig = all_configs['drac']
-        # turn DRAC functionality on or off
-        if 'enable' in draconfig and draconfig['enable']:
-            self.drac = draconfig['enable']  # enable or disable DRAC
-        else:
-            self.drac = False
-        # default dell pass
-        if 'dell' in draconfig and draconfig['dell']:
-            self.ddell = draconfig['dell']
-        else:
-            self.ddell = 'calvin'
-        # drac root user, default is "root"
-        if 'user' in draconfig and draconfig['user']:
-            self.duser = draconfig['user']
-        else:
-            self.duser = 'root'
-        # drac root pass, default is "CHANGE_ME_PLEASE"
-        if 'pass' in draconfig and draconfig['pass']:
-            self.dpass = draconfig['pass']
-        else:
-            self.dpass = 'CHANGE_ME_PLEASE'
-        # list of users for public keys, default is "root, postgres"
-        if 'keys' in draconfig and draconfig['keys']:
-            self.dkeys = draconfig['keys']
-        else:
-            self.dkeys = [ 'root', 'postgres' ]
-        # trusted drac user, default is "gold"
-        if 'trust' in draconfig and draconfig['trust']:
-            self.dgold = draconfig['trust']
-        else:
-            self.dgold = 'gold'
-
-        # SNMP related settings
-        snmpconfig = all_configs['snmp']
-        # snmp hosts. anyone know what this is for?
-        if 'hosts' in snmpconfig and snmpconfig['hosts']:
-            self.snmphosts = snmpconfig['hosts']
-        else:
-            self.snmphosts = [ '10.0.0.1', '10.0.0.3' ]
-        # snmp RO community string, default is "public"
-        if 'community' in snmpconfig and snmpconfig['community']:
-            self.snmpread = snmpconfig['community']
-        else:
-            self.snmpread ='public'
-        # snmp version, default is "2c"
-        if 'version' in snmpconfig and snmpconfig['version']:
-            self.snmpver = snmpconfig['version']
-        else:
-            self.snmpver = '2c'
-
-#        # KV settings
-#        kvconfig = all_configs['kv']
-#        # kv search path, this should probably be deprecated
-#        if 'search_path' in kvconfig and kvconfig['search_path']:
-#            self.search_path = kvconfig['search_path']
-#        else:
-#            self.search_path = [ ['prod', 'iad'], ['iad'], [] ]
-
-        # Zenoss settings
-        zenconfig = all_configs['zenoss']
-        # whether to activate the zenoss module. default is False
-        if 'active' in zenconfig and zenconfig['active']:
-            self.zenlive = zenconfig['active']
-        else:
-            self.zenlive = False
-
         # General settings
         genconfig = all_configs['general']
         # our domain, default is "localhost.localdomain"
@@ -325,74 +230,6 @@ class VyvyanConfigureDaemon(VyvyanConfigure):
             self.sudo_nopass = genconfig['sudo_nopass']
         else:
             self.sudo_nopass = True
-
-        # Virtual Machine settings
-        vmconfig = all_configs['vm']
-        # default minimum specs for new Virtual Machine creation
-        # for use with xen, vmware, etc.
-        # default is: 1 core, 1GB ram, 25GB hard disk
-        if 'min_cpu' in vmconfig and vmconfig['min_cpu'] and \
-        'min_ram' in vmconfig and vmconfig['min_ram'] and \
-        'min_disk' in vmconfig and vmconfig['min_disk']:
-            self.vm_spec = {
-                'cores': vmconfig['min_cpu'],
-                'ram': vmconfig['min_ram'],
-                'disk': vmconfig['min_disk']
-            }
-        else:
-            self.vm_spec = {
-                'cores': 1,
-                'ram': 1,
-                'disk': 25
-            }
-
-        # Zabbix settings
-        zabconfig = all_configs['zabbix']
-        # whether to activate the zabbix module, default is False
-        if 'active' in zabconfig and zabconfig['active']:
-            self.zab_active = zabconfig['active']
-        else:
-            self.zab_active = False
-
-        # Network settings
-        netconf = all_configs['network']
-        # suck in the network map construct from the yaml.
-        # THERE IS NO DEFAULT FOR THIS. YOU MUST SPECIFY IT IN THE YAML.
-        # also, this sucks. we should drop this and find another way to do this.
-        self.network_map = netconf['map']
-        # the main network interface. if you're doing bonding, this will be the
-        # first interface in the bond
-        if 'primary_interface' in netconf and netconf['primary_interface']:
-            self.primary_interface = netconf['primary_interface']
-        else:
-            self.primary_interface = 'eth1'
-        # Management Vlan settings
-        # This can be set to either 'snmp' or 'curl' depending on what
-        # style of management you want to use. default is "snmp"
-        if 'mgmt_facility' in netconf and netconf['mgmt_facility']:
-            self.mgmt_vlan_style = netconf['mgmt_facility']
-        else:
-            self.mgmt_vlan_style = 'snmp'
-        # the interface your management vlan uses. default is eth0
-        if 'mgmt_interface' in netconf and netconf['mgmt_interface']:
-            self.mgmt_vlan_interface = netconf['mgmt_interface']
-        else:
-            self.mgmt_vlan_interface = 'eth0'
-        # some operations to set the management vlan up
-        # if we're using curl, we don't need the snmp settings
-        if self.mgmt_vlan_style == 'curl':
-            self.mgmt_vlan_enable_url = netconf['mgmt_enable_url']
-            self.mgmt_vlan_disable_url = netconf['mgmt_disable_url']
-            self.mgmt_vlan_status_url = netconf['mgmt_status_url']
-        # if we're using snmp, we need a RW community string. default is
-        # "public" which is a terrible default
-        elif self.mgmt_vlan_style == 'snmp':
-            if 'mgmt_community' in netconf and netconf['mgmt_community']:
-                self.mgmt_vlan_community = netconf['mgmt_community']
-            else:
-                self.mgmt_vlan_community = 'public'
-        else:
-            sys.stderr.write("mgmt_vlan->facility has been set incorrectly in the config.\nplease edit /etc/vyvyan_daemon.yaml and set it to either 'snmp' or 'curl'")
 
         # Users and Groups settings
         ugconfig = all_configs['users_and_groups']
@@ -489,39 +326,3 @@ class VyvyanConfigureDaemon(VyvyanConfigure):
             self.ldap_default_gid = ldconfig['default_gid']
         else:
             self.ldap_default_gid = '500'
-
-        # DNS settings
-        # TODO: revisit this. this section was taken wholesale from master
-        dnsconfig = all_configs['dns']
-        if 'active' in dnsconfig and dnsconfig['active']:
-            self.dns_active = dnsconfig['active']
-        else:
-            self.dns_active = False
-        if 'zonecfg' in dnsconfig and dnsconfig['zonecfg']:
-            self.zonecfg = dnsconfig['zonecfg']
-        else:
-            self.zonecfg = '/etc/named/zones.conf'
-        if 'zonedir' in dnsconfig and dnsconfig['zonedir']:
-            self.zonedir = dnsconfig['zonedir']
-        else:
-            self.zonedir = '/var/named/'
-        if 'dns_ttl' in dnsconfig and dnsconfig['dns_ttl']:
-            self.dns_ttl = dnsconfig['dns_ttl']
-        else:
-            self.dns_ttl = '86400'
-        if 'dns_tmpdir' in dnsconfig and dnsconfig['dns_tmpdir']:
-            self.dns_tmpdir = dnsconfig['dns_tmpdir']
-        else:
-            self.dns_tmpdir = '/tmp'
-        if 'refresh' in dnsconfig and dnsconfig['refresh']:
-            self.dns_refresh = dnsconfig['refresh']
-        else:
-            self.dns_refresh = '21600'
-        if 'retry' in dnsconfig and dnsconfig['retry']:
-            self.dns_retry = dnsconfig['retry']
-        else:
-            self.dns_retry = '3600'
-        if 'expire' in dnsconfig and dnsconfig['expire']:
-            self.dns_expire = dnsconfig['expire']
-        else:
-            self.dns_expire = '604800'

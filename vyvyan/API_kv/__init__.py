@@ -237,10 +237,6 @@ class API_kv:
         [return]
         Returns a specific KV entry dict.
         """
-        # assigning stuff
-        hostname = None
-        realm = None
-        site_id = None
         # return value
         kv_entry = None
         # setting our valid query keys
@@ -278,38 +274,10 @@ class API_kv:
             # check for min/max number of optional arguments
             self.common.check_num_opt_args(query, self.namespace, 'select')
 
-            # translate our unqdn to hostname, realm, site_id
-            try:
-                if unqdn:
-                    hostname, realm, site_id = v_split_unqn(unqdn)
-            except Exception, e:
-                self.cfg.log.debug("API_kv/select: %s" % e)
-
             # grab the first thing we can find.
             if any:
                 self.cfg.log.debug("API_kv/select: querying for any record")
                 kv_entry = self.cfg.dbsess.query(KV).first()
-
-            # site_id, nothing else
-            elif site_id and not key and not hostname and not realm:
-                self.cfg.log.debug("API_kv/select: querying for: site_id" % site_id)
-                kv_entry = self.cfg.dbsess.query(KV).\
-                               filter(KV.site_id==site_id).first()
-
-            # site_id, realm, nothing else
-            elif site_id and realm and not key and not hostname:
-                self.cfg.log.debug("API_kv/select: querying for: realm=%s, site_id=%s" % (realm, site_id))
-                kv_entry = self.cfg.dbsess.query(KV).\
-                               filter(KV.site_id==site_id).\
-                               filter(KV.realm==realm).first()
-
-            # site_id, realm, hostname, nothing else
-            elif site_id and realm and hostname and not key:
-                self.cfg.log.debug("API_kv/select: querying for: hostname=%s, realm=%s, site_id=%s" % (hostname, realm, site_id))
-                kv_entry = self.cfg.dbsess.query(KV).\
-                               filter(KV.site_id==site_id).\
-                               filter(KV.realm==realm).\
-                               filter(KV.hostname==hostname).first()
 
             # value, nothing else
             elif value and not unqdn and not key:
