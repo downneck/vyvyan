@@ -40,48 +40,27 @@ class API_list_values:
                 },
             },
             'methods': {
-                'lsv': {
-                    'description': 'list all values of a given type',
-                    'short': 'l',
+                'users': {
+                    'description': 'list all users',
+                    'short': 'u',
                     'rest_type': 'GET',
                     'admin_only': False,
                     'required_args': {
                     },
                     'optional_args': {
-                        'min': 1,
-                        'max': 1,
-                        'args': {
-                            'available_hardware': {
-                                'vartype': 'bool',
-                                'desc': 'all hardware available for provisioning servers on',
-                                'ol': 'a',
-                            },
-                            'ips': {
-                                'vartype': 'bool',
-                                'desc': 'all ip addresses in use',
-                                'ol': 'i',
-                            },
-                            'vlans': {
-                                'vartype': 'bool',
-                                'desc': 'all vlans',
-                                'ol': 'v',
-                            },
-                            'tags': {
-                                'vartype': 'bool',
-                                'desc': 'all tags',
-                                'ol': 't',
-                            },
-                            'groups': {
-                                'vartype': 'bool',
-                                'desc': 'all groups',
-                                'ol': 'g',
-                            },
-                            'users': {
-                                'vartype': 'bool',
-                                'desc': 'all users',
-                                'ol': 'u',
-                            },
-                        },
+                    },
+                    'return': {
+                        'values': ['value', 'value',], # in the case of users and groups, this will be a list of dicts
+                    },
+                },
+                'groups': {
+                    'description': 'list all groups',
+                    'short': 'g',
+                    'rest_type': 'GET',
+                    'admin_only': False,
+                    'required_args': {
+                    },
+                    'optional_args': {
                     },
                     'return': {
                         'values': ['value', 'value',], # in the case of users and groups, this will be a list of dicts
@@ -91,7 +70,7 @@ class API_list_values:
         }
 
 
-    def lsv(self, query):
+    def users(self, query):
         """
         [description]
         lists all values of a given type
@@ -123,83 +102,62 @@ class API_list_values:
         # check for min/max number of optional arguments
         self.common.check_num_opt_args(query, self.namespace, 'lsv')
 
-        # look up all vlans
-        if 'vlans' in query.keys():
-            self.cfg.log.debug("API_list_values/lsv: querying for all vlans")
-            try:
-                for result in self.cfg.dbsess.query(Network.vlan).\
-                    filter(Network.vlan!=0).\
-                    order_by(Network.vlan).\
-                    distinct().all():
-                        buf.append(result.vlan)
-                self.cfg.log.debug(buf)
-            except Exception, e:
-                self.cfg.log.debug("API_list_values/lsv: query failed for: vlans. Error: %s" % e)
-                raise ListValuesError("API_list_values/lsv: query failed for: vlans. Error: %s" % e)
+        self.cfg.log.debug("API_list_values/lsv: querying for all users")
+        try:
+            for u in self.cfg.dbsess.query(Users):
+                if u.active:
+                    act = "active"
+                else:
+                    act = "inactive"
+                buf.append("%s.%s.%s uid:%s %s" % (u.username, u.realm, u.site_id, u.uid, act))
+            self.cfg.log.debug(buf)
+        except Exception, e:
+            self.cfg.log.debug("API_list_values/lsv: query failed for users. Error: %s" % e)
+            raise ListValuesError("API_list_values/lsv: query failed for groups. Error: %s" % e)
 
-        elif 'ips' in query.keys():
-            self.cfg.log.debug("API_list_values/lsv: querying for all ips")
-            try:
-                for net in self.cfg.dbsess.query(Network).order_by(Network.ip):
-                    if net.ip != '0.0.0.0' and net.ip != None:
-                        buf.append(net.ip)
-                self.cfg.log.debug(buf)
-            except Exception, e:
-                self.cfg.log.debug("API_list_values/lsv: query failed for: ips. Error: %s" % e)
-                raise ListValuesError("API_list_values/lsv: query failed for: ips. Error: %s" % e)
+        # return our listing
+        return buf
 
-        elif 'tags' in query.keys():
-            self.cfg.log.debug("API_list_values/lsv: querying for all tags")
-            try:
-                for tag in self.cfg.dbsess.query(Tag):
-                    buf.append(tag.name)
-                self.cfg.log.debug(buf)
-            except Exception, e:
-                self.cfg.log.debug("API_list_values/lsv: query failed for tags. Error: %s" % e)
-                raise ListValuesError("API_list_values/lsv: query failed for tags. Error: %s" % e)
 
-        elif 'groups' in query.keys():
-            self.cfg.log.debug("API_list_values/lsv: querying for all groups")
-            try:
-                for g in self.cfg.dbsess.query(Groups):
-                    buf.append("%s.%s.%s gid:%s" % (g.groupname, g.realm, g.site_id, g.gid))
-                self.cfg.log.debug(buf)
-            except Exception, e:
-                self.cfg.log.debug("API_list_values/lsv: query failed for groups. Error: %s" % e)
-                raise ListValuesError("API_list_values/lsv: query failed for groups. Error: %s" % e)
+    # groups
+    def groups(self, query):
+        """
+        [description]
+        lists all groups
 
-        elif 'users' in query.keys():
-            self.cfg.log.debug("API_list_values/lsv: querying for all users")
-            try:
-                for u in self.cfg.dbsess.query(Users):
-                    if u.active:
-                        act = "active"
-                    else:
-                        act = "inactive"
-                    buf.append("%s.%s.%s uid:%s %s" % (u.username, u.realm, u.site_id, u.uid, act))
-                self.cfg.log.debug(buf)
-            except Exception, e:
-                self.cfg.log.debug("API_list_values/lsv: query failed for users. Error: %s" % e)
-                raise ListValuesError("API_list_values/lsv: query failed for groups. Error: %s" % e)
+        [parameter info]
 
-        elif 'available_hardware' in query.keys():
-            self.cfg.log.debug("API_list_values/lsv: querying for all available hardware")
-            try:
-                # setting up some vars
-                all_hw = []
-                alloc_hw = []
-                # fetch list of all hardware tags
-                for h in self.cfg.dbsess.query(Hardware):
-                    all_hw.append(h.hw_tag)
-                # fetch list of all hardware tags assigned to servers
-                for s in self.cfg.dbsess.query(Server):
-                    alloc_hw.append(s.hw_tag)
-                # diff 'em
-                buf = [item for item in all_hw if not item in alloc_hw]
-                self.cfg.log.debug(buf)
-            except Exception, e:
-                raise ListValuesError("API_list_values/lsv: query failed for available_hardware" % e)
+        [return value]
+        returns a list of groups
+        """
 
+        buf = []
+
+        # verify the number of query arguments
+        if len(query.keys()) > self.metadata['methods']['lsv']['optional_args']['max']:
+            retval = "API_list_values/lsv: too many queries! max number of queries is: %s\n" % self.metadata['methods']['lsv']['optional_args']['max']
+            retval += "API_list_values/lsv: you tried to pass %s queries\n" % len(query.keys())
+            self.cfg.log.debug(retval)
+            raise ListValuesError(retval)
+        else:
+            self.cfg.log.debug("API_list_values/lsv: num queries: %s" % len(query.keys()))
+            self.cfg.log.debug("API_list_values/lsv: max num queries: %s" % self.metadata['methods']['lsv']['optional_args']['max'])
+
+        # make sure we are being passed a valid query
+        if query.keys()[0] not in self.metadata['methods']['lsv']['optional_args']['args'].keys():
+            self.cfg.log.debug("API_list_values/lsv: unsupported listing for: %s. please specify one of the following: %s" % (query.keys()[0], " ".join(self.metadata['methods']['lsv']['optional_args']['args'].keys())))
+            raise ListValuesError("API_list_values/lsv: unsupported listing for: %s. please specify one of the following: %s" % (query.keys()[0], " ".join(self.metadata['methods']['lsv']['optional_args']['args'].keys())))
+        # check for min/max number of optional arguments
+        self.common.check_num_opt_args(query, self.namespace, 'lsv')
+
+        self.cfg.log.debug("API_list_values/lsv: querying for all groups")
+        try:
+            for g in self.cfg.dbsess.query(Groups):
+                buf.append("%s.%s.%s gid:%s" % (g.groupname, g.realm, g.site_id, g.gid))
+            self.cfg.log.debug(buf)
+        except Exception, e:
+            self.cfg.log.debug("API_list_values/lsv: query failed for groups. Error: %s" % e)
+            raise ListValuesError("API_list_values/lsv: query failed for groups. Error: %s" % e)
 
         # return our listing
         return buf
