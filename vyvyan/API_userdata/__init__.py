@@ -51,14 +51,21 @@ class API_userdata:
                     'admin_only': False,
                     'required_args': {
                         'args': {
-                            'unqun': {
+                            'username': {
                                 'vartype': 'str',
-                                'desc': 'username.realm.site_id of the user',
+                                'desc': 'username of the user',
                                 'ol': 'u',
                             },
                         },
                     },
                     'optional_args': {
+                        'args': {
+                            'domain': {
+                                'vartype': 'str',
+                                'desc': 'domain of the user',
+                                'ol': 'd',
+                            },
+                        },
                     },
                     'return': {
                         'user': 'ORMobject',
@@ -75,9 +82,9 @@ class API_userdata:
                     'admin_only': True,
                     'required_args': {
                         'args': {
-                            'unqun': {
+                            'username': {
                                 'vartype': 'str',
-                                'desc': 'username.realm.site_id of the user to add to the database',
+                                'desc': 'username of the user to add to the database',
                                 'ol': 'u',
                             },
                         },
@@ -86,6 +93,11 @@ class API_userdata:
                         'min': 0,
                         'max': 8,
                         'args': {
+                            'domain': {
+                                'vartype': 'str',
+                                'desc': "LDAP domain to add user under (default: username@%s)" % cfg.email_domain,
+                                'ol': 'd',
+                            },
                             'first_name': {
                                 'vartype': 'str',
                                 'desc': 'user\'s first name (default John)',
@@ -139,14 +151,21 @@ class API_userdata:
                     'admin_only': True, 
                     'required_args': {
                         'args': {
-                            'unqun': {
+                            'username': {
                                 'vartype': 'str',
-                                'desc': 'username.realm.site_id of the user to delete from the database',
+                                'desc': 'username of the user to delete from the database',
                                 'ol': 'u',
                             },
                         },
                     },
                     'optional_args': {
+                        'args': {
+                            'domain': {
+                                'vartype': 'str',
+                                'desc': 'domain of the user to delete',
+                                'ol': 'd',
+                            },
+                        },
                     },
                     'return': {
                         'string': 'success',
@@ -159,9 +178,9 @@ class API_userdata:
                     'admin_only': True, 
                     'required_args': {
                         'args': {
-                            'unqun': {
+                            'username': {
                                 'vartype': 'str',
-                                'desc': 'username.realm.site_id of the user to modify',
+                                'desc': 'username of the user to modify',
                                 'ol': 'u',
                             },
                         },
@@ -170,6 +189,11 @@ class API_userdata:
                         'min': 1,
                         'max': 9,
                         'args': {
+                            'domain': {
+                                'vartype': 'str',
+                                'desc': 'domain of the user to modify',
+                                'ol': 'd',
+                            },
                             'first_name': {
                                 'vartype': 'str',
                                 'desc': 'user\'s first name (default John)',
@@ -222,20 +246,24 @@ class API_userdata:
                     },
                 },
                 'uclone': {
-                    'description': 'clone a user from one realm.site_id to another',
+                    'description': 'clone a user from one domain to another',
                     'short': 'uc',
                     'rest_type': 'POST',
                     'admin_only': True, 
                     'required_args': {
                         'args': {
-                            'unqun': {
+                            'username': {
                                 'vartype': 'str',
-                                'desc': 'username.realm.site_id of the user to clone from',
+                                'desc': 'username of the user to clone from',
                                'ol': 'u',
-                            },
-                            'newunqn': {
+                            'domain': {
                                 'vartype': 'str',
-                                'desc': 'realm.site_id to clone the user into',
+                                'desc': 'domain to clone the user from',
+                                'ol': 'd',
+                            },
+                            'newdomain': {
+                                'vartype': 'str',
+                                'desc': 'domain to clone the user into',
                                 'ol': 'n',
                             },
                         },
@@ -253,14 +281,21 @@ class API_userdata:
                     'admin_only': False,
                     'required_args': {
                         'args': {
-                            'unqgn': {
+                            'groupname': {
                                 'vartype': 'str',
-                                'desc': 'name.realm.site_id of the group',
-                                'ol': 'u',
+                                'desc': 'name of the group',
+                                'ol': 'g',
                             },
                         },
                     },
                     'optional_args': {
+                        'args': {
+                            'domain': {
+                                'vartype': 'str',
+                                'desc': 'domain of the group',
+                                'ol': 'd',
+                            },
+                        },
                     },
                     'return': {
                         'group': 'ORMobject',
@@ -277,10 +312,10 @@ class API_userdata:
                     'admin_only': True,
                     'required_args': {
                         'args': {
-                            'unqgn': {
+                            'groupname': {
                                 'vartype': 'str',
-                                'desc': 'group.realm.site_id of the group to add to the database',
-                                'ol': 'u',
+                                'desc': 'group of the group to add to the database',
+                                'ol': 'g',
                             },
                         },
                     },
@@ -288,10 +323,15 @@ class API_userdata:
                         'min': 0,
                         'max': 3,
                         'args': {
+                            'domain': {
+                                'vartype': 'str',
+                                'desc': 'domain of the group',
+                                'ol': 'd',
+                            },
                             'description': {
                                 'vartype': 'str',
                                 'desc': 'a description of the group',
-                                'ol': 'd',
+                                'ol': 'e',
                             },
                             'sudo_cmds': {
                                 'vartype': 'str',
@@ -301,7 +341,7 @@ class API_userdata:
                             'gid': {
                                 'vartype': 'str',
                                 'desc': 'group id number to assign to the group',
-                                'ol': 'g',
+                                'ol': 'i',
                             },
                         },
                     },
@@ -316,14 +356,21 @@ class API_userdata:
                     'admin_only': True, 
                     'required_args': {
                         'args': {
-                            'unqgn': {
+                            'group': {
                                 'vartype': 'str',
-                                'desc': 'groupname.realm.site_id of the group to delete from the database',
-                                'ol': 'u',
+                                'desc': 'groupname of the group to delete from the database',
+                                'ol': 'g',
                             },
                         },
                     },
                     'optional_args': {
+                        'args': {
+                            'domain': {
+                                'vartype': 'str',
+                                'desc': 'domain to delete the group from',
+                                'ol': 'd',
+                            },
+                        },
                     },
                     'return': {
                         'string': 'success',
@@ -336,10 +383,10 @@ class API_userdata:
                     'admin_only': True, 
                     'required_args': {
                         'args': {
-                            'unqgn': {
+                            'groupname': {
                                 'vartype': 'str',
-                                'desc': 'groupname.realm.site_id of the group to modify',
-                                'ol': 'u',
+                                'desc': 'groupname of the group to modify',
+                                'ol': 'g',
                             },
                         },
                     },
@@ -347,6 +394,11 @@ class API_userdata:
                         'min': 1,
                         'max': 3,
                         'args': {
+                            'domain': {
+                                'vartype': 'str',
+                                'desc': 'domain to delete the group from',
+                                'ol': 'd',
+                            },
                             'description': {
                                 'vartype': 'str',
                                 'desc': 'a description of the group',
@@ -360,7 +412,7 @@ class API_userdata:
                             'gid': {
                                 'vartype': 'str',
                                 'desc': 'group id number to assign to the group',
-                                'ol': 'g',
+                                'ol': 'i',
                             },
                         },
                     },
@@ -369,20 +421,25 @@ class API_userdata:
                     },
                 },
                 'gclone': {
-                    'description': 'clone a group from one realm.site_id to another',
+                    'description': 'clone a group from one domain to another',
                     'short': 'gc',
                     'rest_type': 'POST',
                     'admin_only': True, 
                     'required_args': {
                         'args': {
-                            'unqgn': {
+                            'groupname': {
                                 'vartype': 'str',
-                                'desc': 'groupname.realm.site_id of the group to clone from',
-                               'ol': 'u',
+                                'desc': 'groupname of the group to clone from',
+                                'ol': 'g',
                             },
-                            'newunqn': {
+                            'domain': {
                                 'vartype': 'str',
-                                'desc': 'realm.site_id to clone the group into',
+                                'desc': 'domain to clone from',
+                                'ol': 'd',
+                            },
+                            'newdomain': {
+                                'vartype': 'str',
+                                'desc': 'new domain to clone the group into',
                                 'ol': 'n',
                             },
                         },
@@ -394,50 +451,64 @@ class API_userdata:
                     },
                 },
                 'utog': {
-                    'description': 'map a username.realm.site_id to group in the same realm.site_id',
+                    'description': 'map a username to groupname in the same domain',
                     'short': 'ut',
                     'rest_type': 'POST',
                     'admin_only': True, 
                     'required_args': {
                         'args': {
-                            'unqun': {
+                            'username': {
                                 'vartype': 'str',
-                                'desc': 'username.realm.site_id of the user to map',
+                                'desc': 'username of the user to map',
                                'ol': 'u',
                             },
                             'groupname': {
                                 'vartype': 'str',
-                                'desc': 'groupname (without the realm.site_id) to map the user to',
+                                'desc': 'groupname to map the user to',
                                 'ol': 'g',
                             },
                         },
                     },
                     'optional_args': {
+                        'args': {
+                            'domain': {
+                                'vartype': 'str',
+                                'desc': 'domain within which to map',
+                               'ol': 'd',
+                            },
+                        },
                     },
                     'return': {
                         'string': 'success',
                     },
                 },
                 'urmg': {
-                    'description': 'remove a username.realm.site_id from a group in the same realm.site_id',
+                    'description': 'remove a username from a group in the same domain',
                     'short': 'ur',
                     'rest_type': 'POST',
                     'admin_only': True, 
                     'required_args': {
                         'args': {
-                            'unqun': {
+                            'username': {
                                 'vartype': 'str',
-                                'desc': 'username.realm.site_id of the user to unmap',
+                                'desc': 'username of the user to unmap',
                                'ol': 'u',
                             },
                             'groupname': {
                                 'vartype': 'str',
-                                'desc': 'groupname (without the realm.site_id) to remove the user from',
+                                'desc': 'groupname to remove the user from',
                                 'ol': 'g',
                             },
                         },
                     },
                     'optional_args': {
+                        'args': {
+                            'domain': {
+                                'vartype': 'str',
+                                'desc': 'domain within which to unmap',
+                               'ol': 'd',
+                            },
+                        },
                     },
                     'return': {
                         'string': 'success',
@@ -474,8 +545,8 @@ class API_userdata:
                     raise UserdataError("API_userdata/udisplay: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
             # to make our conditionals easier
             if 'unqun' not in query.keys() or not query['unqun']:
-                self.cfg.log.debug("API_useradata/udisplay: no username.realm.site_id provided!")
-                raise UserdataError("API_useradata/udisplay: no username.realm.site_id provided!")
+                self.cfg.log.debug("API_useradata/udisplay: no username provided!")
+                raise UserdataError("API_useradata/udisplay: no username provided!")
             else:
                 unqun = query['unqun']
             # check for min/max number of optional arguments
@@ -525,8 +596,8 @@ class API_userdata:
         try:
             # to make our conditionals easier
             if 'unqun' not in query.keys() or not query['unqun']:
-                self.cfg.log.debug("API_useradata/uadd: no username.realm.site_id provided!")
-                raise UserdataError("API_useradata/uadd: no username.realm.site_id provided!")
+                self.cfg.log.debug("API_useradata/uadd: no username provided!")
+                raise UserdataError("API_useradata/uadd: no username provided!")
             else:
                 unqun = query['unqun']
 

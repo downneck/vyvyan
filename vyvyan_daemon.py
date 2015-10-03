@@ -77,7 +77,6 @@ def __auth_conn(jbuf, authtype):
         return (False, jbuf)
 
 
-@httpservice.route('/loadmodules')
 def load_modules(auth=True):
     """
     scans our main path for modules, loads valid modules
