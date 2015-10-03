@@ -1,1 +1,3 @@
-everything
+replace the concept of realm.site_id with domain to be more LDAPy
+
+collapse modular setup down into just user functionality
