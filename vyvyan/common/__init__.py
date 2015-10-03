@@ -1,4 +1,4 @@
-# Copyright 2015 WebEffects, Inc.
+# Copyright 2015 WebEffects Network, Inc.
 #
 import os
 import sys

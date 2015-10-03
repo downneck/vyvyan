@@ -1,5 +1,5 @@
 ---
-# Copyright 2015 WebEffects, Inc.
+# Copyright 2015 WebEffects Network, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,13 +17,9 @@
 # General config options
 general:
  
-  # fqdn/fqun construction happens in this section
-  # a fqdn in vyvyan is: server.realm.site_id.domain.tld
-  # ex: ns1.qa.sfo.localhost.localdomain
-  # a fqun in vyvyan is: username.realm.site_id.domain.tld
-  # ex: dkovach.prod.area51.mywebsite.com
-
-  # the domain portion of the fqn
+  # we allow multiple ldap domains to be configured
+  # here, you can set the default domain to avoid
+  # having to specify it on the command line constantly 
   domain: 'localhost.localdomain'
 
   # default contact email address
