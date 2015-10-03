@@ -199,32 +199,17 @@ class VyvyanConfigureDaemon(VyvyanConfigure):
 
         # General settings
         genconfig = all_configs['general']
-        # our domain, default is "localhost.localdomain"
-        if 'domain' in genconfig and genconfig['domain']:
-            self.domain = genconfig['domain']
+        # our default domain, default is "localhost.localdomain"
+        if 'default_domain' in genconfig and genconfig['default_domain']:
+            self.default_domain = genconfig['default_domain']
         else:
-            self.domain = 'localhost.localdomain'
+            self.default_domain = 'localhost.localdomain'
         # main contact, for alerts and such. default is
         # "hostmaster@localhost.localdomain"
         if 'contact' in genconfig and genconfig['contact']:
             self.contact = genconfig['contact']
         else:
             self.contact = 'hostmaster@localhost.localdomain'
-        # allowed realms, default is "prod, qa"
-        if 'realms' in genconfig and genconfig['realms']:
-            self.realms = genconfig['realms']
-        else:
-            self.realms = ['prod', 'qa']
-        # allowed site_ids, default is "iad, sfo"
-        if 'site_ids' in genconfig and genconfig['site_ids']:
-            self.site_ids = genconfig['site_ids']
-        else:
-            self.site_ids = ['iad', 'sfo']
-        # default public ip (for non static NATs), default is nonsense
-        if 'publicip' in genconfig and genconfig['publicip']:
-            self.def_public_ip = genconfig['publicip']
-        else:
-            self.def_public_ip = '123.123.123.123'
         # allow sudo without passwords, default is True
         if 'sudo_nopass' in genconfig and genconfig['sudo_nopass']:
             self.sudo_nopass = genconfig['sudo_nopass']
@@ -244,21 +229,14 @@ class VyvyanConfigureDaemon(VyvyanConfigure):
             self.shell = ugconfig['shell']
         else:
             self.shell = '/bin/bash'
-        ##### TODO ##### review this. may need to be deprecated
-        # email domain. do we even use this any more?
-        if 'email_domain' in ugconfig and ugconfig['email_domain']:
-            self.email_domain = ugconfig['email_domain']
-        else:
-            self.email_domain = 'company.com'
-        ##### /TODO #####
         # lowest UID to start provisioning from. default is 500
-        # MOTHERSHIP WILL NOT ALLOW PROVISIONING BELOW THIS
+        # VYVYAN WILL NOT ALLOW PROVISIONING BELOW THIS
         if 'uid_start' in ugconfig and ugconfig['uid_start']:
             self.uid_start = int(ugconfig['uid_start'])
         else:
             self.uid_start = 500
         # highest UID to provision to. default is 65535
-        # MOTHERSHIP WILL NOT ALLOW PROVISIONING BEYOND THIS
+        # VYVYAN WILL NOT ALLOW PROVISIONING BEYOND THIS
         if 'uid_end' in ugconfig and ugconfig['uid_end']:
             self.uid_end = int(ugconfig['uid_end'])
         else:
@@ -277,13 +255,13 @@ class VyvyanConfigureDaemon(VyvyanConfigure):
             self.def_user_type = 'employee'
         # Group settings
         # lowest GID to start provisioning from. default is 500
-        # MOTHERSHIP WILL NOT ALLOW PROVISIONING BELOW THIS
+        # VYVYAN WILL NOT ALLOW PROVISIONING BELOW THIS
         if 'gid_start' in ugconfig and ugconfig['gid_start']:
             self.gid_start = int(ugconfig['gid_start'])
         else:
             self.gid_start = 500
         # highest GID to provision to. default is 65535
-        # MOTHERSHIP WILL NOT ALLOW PROVISIONING BEYOND THIS
+        # VYVYAN WILL NOT ALLOW PROVISIONING BEYOND THIS
         if 'gid_end' in ugconfig and ugconfig['gid_end']:
             self.gid_end = int(ugconfig['gid_end'])
         else:

@@ -20,21 +20,10 @@ general:
   # we allow multiple ldap domains to be configured
   # here, you can set the default domain to avoid
   # having to specify it on the command line constantly 
-  domain: 'localhost.localdomain'
+  default_domain: 'localhost.localdomain'
 
   # default contact email address
   contact: 'hostmaster@localhost.localdomain'
-
-  # an array of valid realms. completely arbitrary
-  # we suggest at least 'prod' and 'qa'
-  realms: ['prod', 'qa']
-
-  # an array of valid site ids. completely arbitrary
-  # for naming of various geographic locations
-  # only really useful if you have multiple datacenters
-  # we default to using international airport callsigns
-  # since they're 3 letters long and globally unique
-  site_ids: ['iad', 'sfo']
 
   # the HTTPBasicAuth user for informational requests (read-only)
   api_info_user: 'apicli'
