@@ -19,7 +19,7 @@
 
 from sqlalchemy import or_, desc, MetaData
 import sys
-import passlib 
+import passlib.hash 
 import vyvyan
 from vyvyan.vyvyan_models import *
 from vyvyan.common import *
@@ -864,7 +864,7 @@ class API_userdata:
             # if the user specifies a domain, restrict output.
             # otherwise return userdata for all domains
             if 'domain' not in query.keys() or not query['domain']:
-                query['domain'] = cfg.default_domain
+                query['domain'] = self.cfg.default_domain
 
             # check for min/max number of optional arguments
             common.check_num_opt_args(query, self.namespace, 'udisplay')
@@ -1031,7 +1031,7 @@ class API_userdata:
                         raise UserdataError("API_userdata/uadd: default groups must exist before we can add users to them! missing group: %s in %s" % (grp, domain))
 
             # hash the password. since we're LDAP-oriented we'll use SSHA
-            passhash = passlib.hash.ldap_salted_sha1.encrypt(password, salt_size=cfg.salt_size)
+            passhash = passlib.hash.ldap_salted_sha1.encrypt(password, salt_size=self.cfg.salt_size)
 
             # create the user object, push it to the db, return status
             u = Users(first_name, last_name, ssh_public_key, passhash, username, domain, uid, user_type, home_dir, shell, email_address, active=True)
@@ -1114,7 +1114,6 @@ class API_userdata:
             self.cfg.log.debug("API_userdata/uremove: error: %s" % e)
             raise UserdataError("API_userdata/uremove: error: %s" % e)
 
-# DONE TO HERE
 
     def umodify(self, query, files=None):
         """
@@ -1204,6 +1203,13 @@ class API_userdata:
                     self.cfg.log.debug("API_userdata/umodify: uid exists already: %s" % query['uid'])
                     raise UserdataError("API_userdata/umodify: uid exists already: %s" % query['uid'])
                 u.uid = int(query['uid'])
+
+            # hash the password. since we're LDAP-oriented we'll use SSHA
+            # TODO: provide support for checking passwords against a configurable number
+            # TODO: of passwords and rejecting matches
+            if 'password' in query.keys() and query['password']:
+                passhash = passlib.hash.ldap_salted_sha1.encrypt(password, salt_size=cfg.salt_size)
+                u.password = passhash
 
             # activate/deactivate the user
             if 'active' in query.keys() and query['active'] in ['F', 'f', 'False', 'false']:
