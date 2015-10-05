@@ -28,6 +28,7 @@ class Users(Base):
     first_name = Column(String)
     last_name = Column(String)
     ssh_public_key = Column(String)
+    password = Column(String)
     username = Column(String, primary_key=True)
     domain = Column(String, primary_key=True)
     uid = Column(Integer)
@@ -38,10 +39,11 @@ class Users(Base):
     email = Column(String)
     active = Column(Boolean, server_default='true')
 
-    def __init__(self, first_name, last_name, ssh_public_key, username, domain, uid, type, hdir, shell, email, active):
+    def __init__(self, first_name, last_name, ssh_public_key, password, username, domain, uid, type, hdir, shell, email, active):
         self.first_name = first_name
         self.last_name = last_name
         self.ssh_public_key = ssh_public_key
+        self.password = password
         self.username = username
         self.domain = domain
         self.uid = uid

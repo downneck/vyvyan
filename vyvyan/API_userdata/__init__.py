@@ -19,7 +19,7 @@
 
 from sqlalchemy import or_, desc, MetaData
 import sys
-import traceback
+import passlib 
 import vyvyan
 from vyvyan.vyvyan_models import *
 from vyvyan.common import *
@@ -172,6 +172,11 @@ class API_userdata:
                                 'desc': 'username of the user to add to the database',
                                 'ol': 'u',
                             },
+                            'password': {
+                                'vartype': 'str',
+                                'desc': 'user\'s password',
+                                'ol': 'p',
+                            },
                         },
                     },
                     'optional_args': {
@@ -276,6 +281,11 @@ class API_userdata:
                         'min': 1,
                         'max': 10,
                         'args': {
+                            'password': {
+                                'vartype': 'str',
+                                'desc': 'user\'s password',
+                                'ol': 'p',
+                            },
                             'domain': {
                                 'vartype': 'str',
                                 'desc': 'domain of the user to modify',
@@ -912,7 +922,11 @@ class API_userdata:
                 raise UserdataError("API_userdata/uadd: no username provided!")
             else:
                 username = query['username']
-
+            if 'password' not in query.keys() or not query['password']:
+                self.cfg.log.debug("API_userdata/uadd: no password provided!")
+                raise UserdataError("API_userdata/uadd: no password provided!")
+            else:
+                password = query['password']
 
             # check for wierd query keys, explode
             for qk in query.keys():
@@ -1016,10 +1030,14 @@ class API_userdata:
                         self.cfg.log.debug("API_userdata/uadd: default groups must exist before we can add users to them! missing group: %s in %s" % (grp, domain))
                         raise UserdataError("API_userdata/uadd: default groups must exist before we can add users to them! missing group: %s in %s" % (grp, domain))
 
+            # hash the password. since we're LDAP-oriented we'll use SSHA
+            passhash = passlib.hash.ldap_salted_sha1.encrypt(password, salt_size=cfg.salt_size)
+
             # create the user object, push it to the db, return status
-            u = Users(first_name, last_name, ssh_public_key, username, domain, uid, user_type, home_dir, shell, email_address, active=True)
+            u = Users(first_name, last_name, ssh_public_key, passhash, username, domain, uid, user_type, home_dir, shell, email_address, active=True)
             self.cfg.dbsess.add(u)
             self.cfg.dbsess.commit()
+
             # if our default group(s) exist, shove the user into it/them
             if dg:
                 for g in dg:

@@ -60,6 +60,7 @@ CREATE TABLE `users` (
   `first_name` varchar(100) NOT NULL,
   `last_name` varchar(100) NOT NULL,
   `ssh_public_key` varchar(1500) DEFAULT NULL,
+  `password` varchar(1500) DEFAULT NULL,
   `username` varchar(64) NOT NULL,
   `domain` varchar(100) NOT NULL,
   `uid` int(11) NOT NULL,

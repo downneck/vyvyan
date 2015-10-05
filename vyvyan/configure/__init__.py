@@ -220,6 +220,14 @@ class VyvyanConfigureDaemon(VyvyanConfigure):
         # Users and Groups settings
         ugconfig = all_configs['users_and_groups']
         # User settings
+        # password salt size. default is 4, min is 4, max is 16 
+        if 'salt_size' in ugconfig and ugconfig['salt_size']:
+            if ugconfig['salt_size'] < 4:
+                raise ConfigureError("salt size must be greater than 4")
+            elif ugconfig['salt_size'] > 16:
+                raise ConfigureError("salt size must be smaller than 16")
+            else:
+                self.salt_size = ugconfig['salt_size']
         # default home parent dir for your users. default is /home
         if 'hdir' in ugconfig and ugconfig['hdir']:
             self.hdir = ugconfig['hdir']
