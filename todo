@@ -1,4 +1,4 @@
-combine list_values functionality into userdata module
+no url-encoded strings for PII!
 
 replace the concept of realm.site_id with domain to be more LDAPy
 
