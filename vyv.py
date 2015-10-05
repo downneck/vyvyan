@@ -66,36 +66,62 @@ def get_commands(cfg, module_map):
 # if someone runs: vyv <command>
 def get_command_args(cfg, module_map):
     try:
+        # create a reverse module map...for reasons
         revmodule_map = swap_dict(module_map)
+
+        # fetch our metadata, set some vars
         response = requests.get('http://'+cfg.api_server+':'+cfg.api_port+'/'+'API_userdata/metadata', auth=(cfg.api_admin_user, cfg.api_admin_pass))
 	module = "API_userdata"
         call = sys.argv[1]
         mmeta = myjson.loads(response.content)
+
         # map short aliases to calls
         callmap = {}
         for ccall in mmeta['data']['methods'].keys():
             callmap[mmeta['data']['methods'][ccall]['short']] = ccall
         if call in callmap.keys():
             call = callmap[call]
+
+        # init a buffer to hold things
         buf = ""
+
+        # couldn't get metadata back
         if mmeta['status'] != 0:
             raise VyvyanCLIError("Error:\n%s" % mmeta['msg'])
+
+        # call does not appear in valid methods
         if not call in mmeta['data']['methods'].keys():
-            raise VyvyanCLIError("Invalid command issued: %s" % sys.argv[1].split('/')[1])
+            raise VyvyanCLIError("Invalid command issued: %s" % sys.argv[1])
+
+        # no args defined, just run the thing
+        if not 'args' in mmeta['data']['methods'][call]['optional_args'] and not 'args' in mmeta['data']['methods'][call]['required_args']:
+            call_command(cfg, module_map)
+            # stop processing
+            sys.exit(0)
+
+        # add description
         if 'description' in mmeta['data']['methods'][call]:
             buf += mmeta['data']['methods'][call]['description']
             buf += "\n\n"
+
+        # add required args to usage output
         if 'args' in mmeta['data']['methods'][call]['required_args']:
             buf += "Required arguments:\n"
             for k in sorted(mmeta['data']['methods'][call]['required_args']['args'].keys()):
                 buf += "--%s (-%s): %s" % (k, mmeta['data']['methods'][call]['required_args']['args'][k]['ol'], mmeta['data']['methods'][call]['required_args']['args'][k]['desc'])
                 buf += "\n"
+
+        # add optional args to usage output
         if 'args' in mmeta['data']['methods'][call]['optional_args']:
             buf += "\nOptional arguments, supply a minimum of %s and a maximum of %s of the following:\n" % (mmeta['data']['methods'][call]['optional_args']['min'], mmeta['data']['methods'][call]['optional_args']['max'])
             for k in sorted(mmeta['data']['methods'][call]['optional_args']['args'].keys()):
                 buf += "--%s (-%s): %s" % (k, mmeta['data']['methods'][call]['optional_args']['args'][k]['ol'], mmeta['data']['methods'][call]['optional_args']['args'][k]['desc'])
                 buf += "\n"
+
+        # once we're done constructing things, return data
         return buf
+
+    # explode violently
     except Exception, e:
         raise VyvyanCLIError(e)
 
@@ -120,12 +146,14 @@ def call_command(cfg, module_map):
         mmeta = myjson.loads(response.content)
         if mmeta['status'] != 0:
             raise VyvyanCLIError("Error output:\n%s" % mmeta['msg'])
+
         # map short aliases to calls
         callmap = {}
         for ccall in mmeta['data']['methods'].keys():
             callmap[mmeta['data']['methods'][ccall]['short']] = ccall
         if call in callmap.keys():
             call = callmap[call]
+
         # set up our command line options through optparse. will
         # change this to argparse if we upgrade past python 2.7
         if 'description' in  mmeta['data']['methods'][call]:
@@ -156,8 +184,6 @@ def call_command(cfg, module_map):
                                       '--'+k, help=mmeta['data']['methods'][call]['optional_args']['args'][k]['desc'],\
                                       action="store_true")
                     arglist[k] = mmeta['data']['methods'][call]['optional_args']['args'][k]['vartype']
-        if not arglist:
-            raise VyvyanCLIError("Error: no arguments defined")
 
         # do we have any required arguments?
         if 'args' in mmeta['data']['methods'][call]['required_args'].keys():
@@ -167,16 +193,21 @@ def call_command(cfg, module_map):
 
         # parse our options and build a urlencode string to pass
         # over to the API service
+        # 
+        # TODO: need to use POST data for PII (usernames, passwords)
+        #       will need to figure out a better way to do this 
         #
         # spaces in URLs make vyvyan sad, so replace with %20
         (options, args) = parser.parse_args(sys.argv[2:])
         files = {}
         for k in arglist.keys():
             a = vars(options)[k]
+
             # if the variable type expected by vyv_daemon is "file", we
             # need to operate slightly differently
             if a and k and arglist[k] == "file":
                 files[k] = open(a)
+
             # if the variable type isn't "file", jam the query onto
             # the end of our query string buffer
             elif a and k:
@@ -186,10 +217,13 @@ def call_command(cfg, module_map):
                     buf += k+'='+str(a.replace(' ', '%20'))
                 else:
                     buf += k
+
             # if options[k] is empty and is a required option, explode
             elif not a and k in required_args: 
                 raise VyvyanCLIError(get_command_args(cfg, module_map))
+
             # this just means's it's an unpopulated optional argument
+            # TODO: do we need this? -dk
             else:
                 pass
 
@@ -202,6 +236,7 @@ def call_command(cfg, module_map):
             callresponse = requests.delete('http://'+cfg.api_server+':'+cfg.api_port+'/'+module+'/'+call+'?'+buf, auth=(cfg.api_admin_user, cfg.api_admin_pass))
         elif mmeta['data']['methods'][call]['rest_type'] == 'PUT':
             callresponse = requests.put('http://'+cfg.api_server+':'+cfg.api_port+'/'+module+'/'+call+'?'+buf, files=files, auth=(cfg.api_admin_user, cfg.api_admin_pass))
+
         # load the JSON response into the equivalent python variable type
         responsedata = myjson.loads(callresponse.content)
         if responsedata['status'] != 0:
@@ -225,6 +260,8 @@ def call_command(cfg, module_map):
             except Exception, e:
                 print "Error: %s\n\n" % e
                 print responsedata
+
+    # explode violently
     except Exception, e:
         raise VyvyanCLIError(e)
 

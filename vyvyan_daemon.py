@@ -191,7 +191,8 @@ def loaded_modules():
             cfg.log.debug('metadata key: '+k)
             try:
                 jbuf['data'].append(cfg.module_metadata[k].namespace)
-                cfg.log.debug(jbuf)
+                # uncomment to debug
+                #cfg.log.debug(jbuf)
             except:
                 continue
         return myjson.JSONEncoder().encode(jbuf)
@@ -239,16 +240,18 @@ def namespace_path(pname):
 def callable_path(pname, callpath):
     """
     returns data about a function call or calls the function.
-    will probably change significantly before the rewrite
     """
+    # set up our buffer
     response.content_type='application/json'
     jbuf = __generate_json_header()
     jbuf['request'] = "/%s/%s" % (pname, callpath)
+
     # authenticate the incoming request just enough to get metadata
     authed, jbuf = __auth_conn(jbuf, 'info')
     if not authed:
         response.content_type='text/html'
         raise bottle.HTTPError(401, '/'+pname+'/'+callpath) 
+
     # assuming we're authed, do stuff
     try:
         query = bottle.request.GET
@@ -257,57 +260,52 @@ def callable_path(pname, callpath):
         for kkkk in filesdata.keys():
             files.append(filesdata[kkkk].file)
         pnameMetadata = cfg.module_metadata[pname]
+
         # every API module has a 'metadata' construct
         # hard wire it into callpath options
         # this is an info-level request so no re-auth
         if callpath == 'metadata':
+            # uncomment for debugging
             #cfg.log.debug(myjson.JSONEncoder(indent=4).encode(pnameMetadata.metadata))
             jbuf['data'] = pnameMetadata.metadata
             return myjson.JSONEncoder().encode(jbuf)
         else:
             pnameCallpath = pnameMetadata.metadata['methods'][callpath]
+
         # we got an actual callpath! do stuff.
-        if query:
-            #cfg.log.debug("method called: %s" % myjson.JSONEncoder(indent=4).encode(cfg.module_metadata[pname].metadata['methods'][callpath]))
-            if bottle.request.method == pnameCallpath['rest_type']:
-                # check to see if the function we're calling is defined as "admin-only"
-                # which requires a different user/pass than "info-only" requests
-                if pnameCallpath['admin_only']:
-                    reauthed, jbuf = __auth_conn(jbuf, 'admin')
-                    if not reauthed:
-                        response.content_type='text/html'
-                        raise bottle.HTTPError(401, '/'+pname+'/'+callpath)
-                # fetch the method we were asked to call and instantiate it in "buf"
-                buf = getattr(pnameMetadata, callpath)
-                # this is the block that actually runs the called method
-                if filesdata:
-                    jbuf['data'] = buf(query, files)
-                else:
-                    jbuf['data'] = buf(query)
-                #cfg.log.debug(myjson.JSONEncoder(indent=4).encode(jbuf))
-                return myjson.JSONEncoder().encode(jbuf)
+        # uncomment for debugging
+        #cfg.log.debug("method called: %s" % myjson.JSONEncoder(indent=4).encode(cfg.module_metadata[pname].metadata['methods'][callpath]))
+        if bottle.request.method == pnameCallpath['rest_type']:
+            # check to see if the function we're calling is defined as "admin-only"
+            # which requires a different user/pass than "info-only" requests
+            if pnameCallpath['admin_only']:
+                reauthed, jbuf = __auth_conn(jbuf, 'admin')
+                if not reauthed:
+                    response.content_type='text/html'
+                    raise bottle.HTTPError(401, '/'+pname+'/'+callpath)
+
+            # fetch the method we were asked to call and instantiate it in "buf"
+            # this is the magic bit of anonymous function calls that allows
+            # the metadata construct to define what gets used for each query
+            # passed by the CLI script
+            buf = getattr(pnameMetadata, callpath)
+
+            # this is the block that actually runs the called method
+            if filesdata:
+                jbuf['data'] = buf(query, files)
             else:
-                raise VyvyanDaemonError("request method \"%s\" does not match allowed type \"%s\" for call \"/%s/%s\"" % (bottle.request.method, pnameCallpath['rest_type'], pname, callpath))
-        # everyone wants query strings, blow up and spit out information if
-        # we don't get any query strings
+                jbuf['data'] = buf(query)
+
+            # uncomment for debugging
+            #cfg.log.debug(myjson.JSONEncoder(indent=4).encode(jbuf))
+
+            # return our buffer
+            return myjson.JSONEncoder().encode(jbuf)
+
+        # explode violently
         else:
-            jbuf['msg'] = "Invalid query string passed! See 'data' for valid query strings'" 
-            jbuf['data'] = {}
-            jbuf['data']['available_query_strings'] = {}
-            try:
-                for req in pnameMetadata.metadata['methods'][callpath]['required_args']['args'].keys():
-                    cfg.log.debug("required arg: %s" % req)
-                jbuf['data']['available_query_strings']['required_args'] = pnameCallpath['required_args']
-            except:
-                pass
-            try:
-                jbuf['data']['available_query_strings']['optional_args'] = pnameCallpath['optional_args']
-                for opt in pnameCallpath['optional_args']['args'].keys():
-                    cfg.log.debug("optional arg: %s" % opt)
-            except:
-                pass
-            return myjson.JSONEncoder(indent=4).encode(jbuf)
-            cfg.log.debug(jbuf)
+            raise VyvyanDaemonError("request method \"%s\" does not match allowed type \"%s\" for call \"/%s/%s\"" % (bottle.request.method, pnameCallpath['rest_type'], pname, callpath))
+
     # catch and re-raise HTTP auth errors
     except bottle.HTTPError:
         raise bottle.HTTPError(401, '/'+pname+'/'+callpath)

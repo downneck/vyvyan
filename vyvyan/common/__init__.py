@@ -67,6 +67,8 @@ class VyvyanCommon(object):
         if 'args' in self.cfg.module_metadata[module].metadata['methods'][call]['optional_args'].keys():
             for i in self.cfg.module_metadata[module].metadata['methods'][call]['optional_args']['args'].keys():
                 valid_qkeys.append(i)
+        if not 'args' in self.cfg.module_metadata[module].metadata['methods'][call]['optional_args'].keys() and not 'args' in self.cfg.module_metadata[module].metadata['methods'][call]['required_args'].keys():
+            valid_qkeys = None
         return valid_qkeys
 
 

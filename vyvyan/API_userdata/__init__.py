@@ -52,9 +52,14 @@ class API_userdata:
                     'required_args': {
                     },
                     'optional_args': {
-                        'min': 0,
+                        'min': 1,
                         'max': 1,
                         'args': {
+                            'all': {
+                                'vartype': 'bool',
+                                'desc': 'all domains',
+                                'ol': 'a',
+                            },
                             'domain': {
                                 'vartype': 'str',
                                 'desc': 'domain of the user',
@@ -81,9 +86,14 @@ class API_userdata:
                     'required_args': {
                     },
                     'optional_args': {
-                        'min': 0,
+                        'min': 1,
                         'max': 1,
                         'args': {
+                            'all': {
+                                'vartype': 'bool',
+                                'desc': 'all domains',
+                                'ol': 'a',
+                            },
                             'domain': {
                                 'vartype': 'str',
                                 'desc': 'domain of the user',
@@ -103,7 +113,7 @@ class API_userdata:
                     },
                 },
                 'list_domains': {
-                    'description': 'list domains',
+                    'description': 'list domains (does not take arguments)',
                     'short': 'lsd',
                     'rest_type': 'GET',
                     'admin_only': False,
@@ -605,6 +615,211 @@ class API_userdata:
         }
 
 
+
+    #############################
+    # listing methods           #
+    #############################
+
+    def list_users(self, query):
+        """
+        [description]
+        lists all users
+
+        [parameter info]
+        required:
+            query: the query dict being passed to us from the called URI
+
+        [return value]
+        returns a dict of lists of users per domain
+        """
+        try:
+            self.cfg.log.debug(query.keys())
+            # setting our valid query keys
+            common = VyvyanCommon(self.cfg)
+            valid_qkeys = common.get_valid_qkeys(self.namespace, 'list_users')
+
+            # check for wierd query keys, explode
+            for qk in query.keys():
+                if qk not in valid_qkeys:
+                    self.cfg.log.debug("API_userdata/list_users: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
+                    raise UserdataError("API_userdata/list_users: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
+
+            # if the user specifies a domain, restrict output.
+            # otherwise return userdata for all domains
+            if 'domain' not in query.keys() or not query['domain']:
+                domain = None
+            else:
+                domain = query['domain']
+
+            # check for min/max number of optional arguments
+            common.check_num_opt_args(query, self.namespace, 'list_users')
+
+            # iterate through all domains and spit out some users
+            buf = {} 
+            self.cfg.log.debug("API_userdata/list_users: querying for all users")
+            if domain:
+                usertable = self.cfg.dbsess.query(Users).\
+                filter(Users.domain==domain).all()
+            else:
+                usertable = self.cfg.dbsess.query(Users).all()
+            for u in usertable:
+                if u.domain not in buf.keys():
+                  buf[u.domain] = []
+            for u in usertable:
+                if u.active:
+                    act = "active"
+                else:
+                    act = "inactive"
+                buf[u.domain].append("%s uid:%s %s" % (u.username, u.uid, act))
+
+            # if the user specified a domain but it's empty
+            if buf == {} and domain:
+                self.cfg.log.debug("API_userdata/list_users: no users in domain %s" % domain)
+                raise UserdataError("API_userdata/list_users: no users in domain %s" % domain)
+            elif buf == {}:
+                self.cfg.log.debug("API_userdata/list_users: no users found")
+                raise UserdataError("API_userdata/list_users: no users found")
+
+            # return our listing
+            self.cfg.log.debug(buf)
+            return buf
+
+        except Exception, e:
+            self.cfg.log.debug("API_userdata/list_users: query failed for users. Error: %s" % e)
+            raise UserdataError("API_userdata/list_users: query failed for groups. Error: %s" % e)
+
+
+    def list_groups(self, query):
+        """
+        [description]
+        lists all groups
+
+        [parameter info]
+        required:
+            query: the query dict being passed to us from the called URI
+
+        [return value]
+        returns a dict of lists of groups per domain
+        """
+        try:
+            self.cfg.log.debug(query.keys())
+            # setting our valid query keys
+            common = VyvyanCommon(self.cfg)
+            valid_qkeys = common.get_valid_qkeys(self.namespace, 'list_groups')
+
+            # check for wierd query keys, explode
+            for qk in query.keys():
+                if qk not in valid_qkeys:
+                    self.cfg.log.debug("API_userdata/list_groups: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
+                    raise UserdataError("API_userdata/list_groups: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
+
+            # if the user specifies a domain, restrict output.
+            # otherwise return userdata for all domains
+            if 'domain' not in query.keys() or not query['domain']:
+                domain = None
+            else:
+                domain = query['domain']
+
+            # check for min/max number of optional arguments
+            common.check_num_opt_args(query, self.namespace, 'list_groups')
+
+            # iterate through all domains and spit out some groups
+            buf = {} 
+            self.cfg.log.debug("API_userdata/list_groups: querying for all groups")
+            if domain:
+                grouptable = self.cfg.dbsess.query(Groups).\
+                filter(Groups.domain==domain).all()
+            else:
+                grouptable = self.cfg.dbsess.query(Groups).all()
+            for g in grouptable:
+                if g.domain not in buf.keys():
+                  buf[g.domain] = []
+            for u in grouptable:
+                buf[g.domain].append("%s gid:%s" % (g.groupname, g.gid))
+
+            # if the user specified a domain but it's empty
+            if buf == {} and domain:
+                self.cfg.log.debug("API_userdata/list_groups: no groups in domain %s" % domain)
+                raise UserdataError("API_userdata/list_groups: no groups in domain %s" % domain)
+            elif buf == {}:
+                self.cfg.log.debug("API_userdata/list_groups: no groups found")
+                raise UserdataError("API_userdata/list_groups: no groups found")
+
+            # return our listing
+            self.cfg.log.debug(buf)
+            return buf
+
+        except Exception, e:
+            self.cfg.log.debug("API_userdata/list_groups: query failed for groups. Error: %s" % e)
+            raise UserdataError("API_userdata/list_groups: query failed for groups. Error: %s" % e)
+
+
+    def list_domains(self, query):
+        """
+        [description]
+        lists all domains
+
+        [parameter info]
+        required:
+            query: the query dict being passed to us from the called URI
+
+        [return value]
+        returns a list of domains
+        """
+        try:
+            # setting our valid query keys
+            common = VyvyanCommon(self.cfg)
+            valid_qkeys = common.get_valid_qkeys(self.namespace, 'list_domains')
+
+            # check for wierd query keys, explode
+            for qk in query.keys():
+                if qk not in valid_qkeys:
+                    self.cfg.log.debug("API_userdata/list_domains: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
+                    raise UserdataError("API_userdata/list_domains: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
+
+            # if the user specifies a domain, restrict output.
+            # otherwise return userdata for all domains
+            if 'domain' not in query.keys() or not query['domain']:
+                domain = None
+            else:
+                domain = query['domain']
+
+            # check for min/max number of optional arguments
+            common.check_num_opt_args(query, self.namespace, 'list_domains')
+
+            # little bit of setup work
+            buf = []
+            self.cfg.log.debug("API_userdata/list_domains: querying for all domains")
+
+            # iterate through all users and spit out some domains
+            usertable = self.cfg.dbsess.query(Users).all()
+            for u in usertable:
+                if u.domain not in buf:
+                  buf.append(u.domain)
+
+            # iterate through all groups and spit out some domains
+            # just in case we have some oddball domain with groups and no users
+            grouptable = self.cfg.dbsess.query(Groups).all()
+            for g in grouptable:
+                if g.domain not in buf:
+                  buf.append(g.domain)
+
+            # if nothing exists
+            if buf == []:
+                self.cfg.log.debug("API_userdata/list_domains: no domains found")
+                raise UserdataError("API_userdata/list_domains: no domains found")
+
+            # return our listing
+            return buf
+
+        except Exception, e:
+            self.cfg.log.debug("API_userdata/list_domains: query failed for domains. Error: %s" % e)
+            raise UserdataError("API_userdata/list_domains: query failed for groups. Error: %s" % e)
+
+
+
+
+
     #############################
     # user manipulation methods #
     #############################
@@ -634,8 +849,8 @@ class API_userdata:
 
             # to make our conditionals easier
             if 'username' not in query.keys() or not query['username']:
-                self.cfg.log.debug("API_userdata/API_useradata/udisplay: no username provided!")
-                raise UserdataError("API_userdata/API_useradata/udisplay: no username provided!")
+                self.cfg.log.debug("API_userdata/udisplay: no username provided!")
+                raise UserdataError("API_userdata/udisplay: no username provided!")
 
             # if the user specifies a domain, restrict output.
             # otherwise return userdata for all domains
@@ -697,8 +912,8 @@ class API_userdata:
         try:
             # to make our conditionals easier
             if 'username' not in query.keys() or not query['username']:
-                self.cfg.log.debug("API_userdata/API_useradata/uadd: no username provided!")
-                raise UserdataError("API_userdata/API_useradata/uadd: no username provided!")
+                self.cfg.log.debug("API_userdata/uadd: no username provided!")
+                raise UserdataError("API_userdata/uadd: no username provided!")
             else:
                 username = query['username']
 
@@ -838,8 +1053,8 @@ class API_userdata:
         try:
             # to make our conditionals easier
             if 'username' not in query.keys() or not query['username']:
-                self.cfg.log.debug("API_userdata/API_useradata/uremove: no username provided!")
-                raise UserdataError("API_userdata/API_useradata/uremove: no username provided!")
+                self.cfg.log.debug("API_userdata/uremove: no username provided!")
+                raise UserdataError("API_userdata/uremove: no username provided!")
             else:
                 username = query['username']
                 v_name(username)
@@ -906,8 +1121,8 @@ class API_userdata:
         try:
             # to make our conditionals easier
             if 'username' not in query.keys() or not query['username']:
-                self.cfg.log.debug("API_userdata/API_useradata/umodify: no username provided!")
-                raise UserdataError("API_userdata/API_useradata/umodify: no username provided!")
+                self.cfg.log.debug("API_userdata/umodify: no username provided!")
+                raise UserdataError("API_userdata/umodify: no username provided!")
             else:
                 username = query['username']
 
@@ -1087,8 +1302,8 @@ class API_userdata:
 
             # to make our conditionals easier
             if 'groupname' not in query.keys() or not query['groupname']:
-                self.cfg.log.debug("API_userdata/API_useradata/gdisplay: no groupname provided!")
-                raise UserdataError("API_userdata/API_useradata/gdisplay: no groupname provided!")
+                self.cfg.log.debug("API_userdata/gdisplay: no groupname provided!")
+                raise UserdataError("API_userdata/gdisplay: no groupname provided!")
             else:
                 groupname = query['groupname']
 
@@ -1145,8 +1360,8 @@ class API_userdata:
         try:
             # to make our conditionals easier
             if 'groupname' not in query.keys() or not query['groupname']:
-                self.cfg.log.debug("API_userdata/API_useradata/gadd: no groupname provided!")
-                raise UserdataError("API_userdata/API_useradata/gadd: no groupname provided!")
+                self.cfg.log.debug("API_userdata/gadd: no groupname provided!")
+                raise UserdataError("API_userdata/gadd: no groupname provided!")
             else:
                 groupname = query['groupname']
                 v_name(groupname)
