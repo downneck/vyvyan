@@ -285,20 +285,20 @@ def print_responsedata(responsedata, mmeta, call):
         # user know what the error message was 
         print responsedata['msg']
     elif responsedata['data']:
-        module = 'API_userdata' 
-        env = Environment(loader=FileSystemLoader('vyvyan/'+module))
+        module = 'API_userdata'
+        tfile = "template.cmdln.%s" % call 
+        #env = Environment(loader=FileSystemLoader('vyvyan/'+module))
         try:
             # try to load up a template called template.cmdln.<call>
             # this allows us to format output specifically to each call
-            template = env.get_template("template.cmdln.%s" % call)
-            print template.render(r=responsedata)
-        except TemplateNotFound:
-            # template.cmdln.<call> apparently doesn't exist. load the default template
-            template = env.get_template('template.cmdln')
-            print template.render(r=responsedata)
-        except:
-            # no template at all! just spit the data out
-            print responsedata
+            if mmeta['data']['templates'][tfile]:
+                template = mmeta['data']['templates'][tfile] 
+                print Environment().from_string(template).render(r=responsedata)
+            else:
+                # no template at all! just spit the data out
+                print responsedata
+        except Exception, e:
+            raise VyvyanCLIError(e)
     else:
         # no data, no msg, no error. most likely an API command that returned
         # an empty string or set. just print a blank line to indicate blankness

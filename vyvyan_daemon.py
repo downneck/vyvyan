@@ -9,6 +9,7 @@ import traceback
 from bottle import static_file
 from bottle import response
 from socket import gethostname
+from jinja2 import *
 
 # vyvyan imports
 from vyvyan import configure
@@ -95,11 +96,15 @@ def load_modules(auth=True):
     # clear module metadata
     old_metadata = cfg.module_metadata
     cfg.module_metadata = {}
+    cfg.module_templates = {}
     # base path we're being called from, to find our modules
     basepath = sys.path[0]
     try:
         # get a list of all subdirectories under vyvyan
+        # uncomment to debug
+        #cfg.log.debug(os.walk(basepath+'/vyvyan/').next()[1])
         for i in os.walk(basepath+'/vyvyan/').next()[1]:
+            cfg.log.debug(os.walk(basepath+'/vyvyan/'+i).next()[0])
             if 'API_' in i:
                 try:
                     # import each module in the list above, grab the metadata
@@ -118,6 +123,26 @@ def load_modules(auth=True):
                     bar = getattr(foo, i)
                     inst = bar(cfg)
                     cfg.module_metadata[i] = inst
+                    cfg.module_templates[i] = {} 
+                    cfg.log.debug("loading templates for module: vyvyan.%s" % i)
+                    # get us some template lovin
+                    env = Environment(loader=FileSystemLoader('vyvyan/'+i))
+                    try:
+                        for tfile in os.listdir(basepath+'/vyvyan/'+i):
+                            # uncomment to debug
+                            #cfg.log.debug("tfile: %s" % tfile)
+                            if 'template' in tfile:
+                                cfg.log.debug("loading template: %s" % tfile)
+                                # this won't work since template data isn't JSON serializable
+                                #template = env.get_template(tfile)
+                                template = open(basepath+'/vyvyan/'+i+'/'+tfile)
+                                if template:
+                                    cfg.module_templates[i][tfile] = template.read()
+                    except Exception, e:
+                        # uncomment to debug
+                        #cfg.log.debug("template file: %s" % tfile)
+                        #cfg.log.debug("template: %s" % template)
+                        cfg.log.debug("template load error: %s" % e)
                 except Exception, e:
                     cfg.log.debug("import error: %s" % e)
             else:
@@ -260,7 +285,8 @@ def callable_path(pname, callpath):
         for kkkk in filesdata.keys():
             files.append(filesdata[kkkk].file)
         pnameMetadata = cfg.module_metadata[pname]
-
+        pnameMetadata.metadata['templates'] = cfg.module_templates[pname]
+#MARK
         # every API module has a 'metadata' construct
         # hard wire it into callpath options
         # this is an info-level request so no re-auth

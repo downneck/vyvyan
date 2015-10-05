@@ -165,6 +165,7 @@ class VyvyanConfigureDaemon(VyvyanConfigure):
         """
         # module metadata for API module loader
         self.module_metadata = {}
+        self.module_templates = {}
         all_configs = self.all_configs
 
         # Database related settings
