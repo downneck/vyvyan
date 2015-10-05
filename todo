@@ -4,8 +4,6 @@ replace the concept of realm.site_id with domain to be more LDAPy
 
 add passwords
 
-spit jinja2 templates back using API instead of files so CLI can be run anywhere
-
 add validation for domains
 
 rewrite sudoers mapping now that we don't have any servers in the DB. maybe. maybe rethink it
