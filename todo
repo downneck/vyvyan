@@ -8,8 +8,6 @@ add validation for domains
 
 rewrite sudoers mapping now that we don't have any servers in the DB. maybe. maybe rethink it
 
-autoremove users from groups upon user removal
-
 pull over LDAP output module, integrate into main functionality
 
 NOTE: LOOK FOR "DONE TO HERE"

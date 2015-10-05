@@ -1096,10 +1096,11 @@ class API_userdata:
             # find us a username to delete, validation done in the __get_user_obj function
             u = self.__get_user_obj(username, domain) 
             if u:
-                if self.__get_groups_by_user(username, domain):
-                    # TODO: autoremove user from groups
-                    self.cfg.log.debug("API_userdata/uremove: please remove user from all groups before deleting!")
-                    raise UserdataError("API_userdata/uremove: please remove user from all groups before deleting!")
+                groups = self.__get_groups_by_user(username, domain)
+                if groups:
+                    for group in groups:
+                        query = {"username": username, "groupname": group.groupname, "domain": domain} 
+                        self.urmg(query) 
                 self.cfg.dbsess.delete(u)
                 self.cfg.dbsess.commit()
                 self.cfg.log.debug("API_userdata/uremove: deleted user %s from domain %s" % (username, domain))
