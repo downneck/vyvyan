@@ -12,8 +12,6 @@ rewrite sudoers mapping now that we don't have any servers in the DB. maybe. may
 
 autoremove users from groups upon user removal
 
-add copy feature for uadd and gadd, distinct from clone
-
 pull over LDAP output module, integrate into main functionality
 
 NOTE: LOOK FOR "DONE TO HERE"
