@@ -1,3 +1,5 @@
+combine list_values functionality into userdata module
+
 replace the concept of realm.site_id with domain to be more LDAPy
 
 update validation: v_uid_in_db/v_gid_in_db to use domain and not realm.site
@@ -8,10 +10,6 @@ spit jinja2 templates back using API instead of files so CLI can be run anywhere
 
 add validation for domains
 
-collapse modular setup down into just user functionality
-
-combine list_values functionality into userdata module
-
 rewrite sudoers mapping now that we don't have any servers in the DB. maybe. maybe rethink it
 
 autoremove users from groups upon user removal
@@ -20,4 +18,4 @@ add copy feature for uadd and gadd, distinct from clone
 
 pull over LDAP output module, integrate into main functionality
 
-NOTE: LOOK FOR "DONE TO HERE" IN API_userdata/__init__.py
+NOTE: LOOK FOR "DONE TO HERE"
