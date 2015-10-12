@@ -141,9 +141,11 @@ def v_uid_in_db(cfg, uid, domain=None):
     v_uid(cfg, uid)
     uidlist = []
     # go get our list
-    u = cfg.dbsess.query(Users).\
-        filter(Users.realm==realm).\
-        filter(Users.site_id==site_id).all()
+    if domain:
+        u = cfg.dbsess.query(Users).\
+            filter(Users.domain==domain).all()
+    else:
+        u = cfg.dbsess.query(Users).all()
     # put em in a list
     for userentry in u:
         uidlist.append(userentry.uid)
