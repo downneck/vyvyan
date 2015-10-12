@@ -122,7 +122,7 @@ def v_uid(cfg, uid):
         raise ValidationError("UID must be an integer!")
 
 # Looks for a UID in the db and returns true if present, false if absent
-def v_uid_in_db(cfg, uid, realm, site_id):
+def v_uid_in_db(cfg, uid, domain=None):
     """
     [description]
     looks for a UID in the db
@@ -131,19 +131,23 @@ def v_uid_in_db(cfg, uid, realm, site_id):
     required:
         cfg: the config object. useful everywhere
         uid: the UID we're trying to find
-        realm: the realm we're trying to find it in
-        site_id: the site_id we're trying to find it in
+    optional:
+        domain: the domain to look in
 
     [return value]
     True/False based on success of validation
     """
+    # make sure we're within operational parameters
     v_uid(cfg, uid)
     uidlist = []
+    # go get our list
     u = cfg.dbsess.query(Users).\
         filter(Users.realm==realm).\
         filter(Users.site_id==site_id).all()
+    # put em in a list
     for userentry in u:
         uidlist.append(userentry.uid)
+    # finally, check 'em
     uid_set = set(uidlist)
     if uid in uid_set:
         return True
@@ -151,7 +155,7 @@ def v_uid_in_db(cfg, uid, realm, site_id):
         return False
 
 # Looks for a GID in the db and returns true if present, false if absent
-def v_gid_in_db(cfg, gid, realm, site_id):
+def v_gid_in_db(cfg, gid, domain=None):
     """
     [description]
     looks for a GID in the db
@@ -160,20 +164,25 @@ def v_gid_in_db(cfg, gid, realm, site_id):
     required:
         cfg: the config object. useful everywhere
         gid: the GID we're looking for
-        realm: the realm we're trying to find it in
-        site_id: the site_id we're trying to find it in
+    optional:
+        domain: the domain to look in 
 
     [return value]
-    returns an integer representing the GID if the GID is in the db
-    returns False if the GID is not in the db
+    True/False based on success of validation
     """
+    # make sure we're within operational parameters
     v_gid(cfg, gid)
     gidlist = []
-    g = cfg.dbsess.query(Groups).\
-        filter(Groups.realm==realm).\
-        filter(Groups.site_id==site_id).all()
+    # go get our list
+    if domain:
+        g = cfg.dbsess.query(Groups).\
+            filter(Groups.domain==domain).all()
+    else:
+        g = cfg.dbsess.query(Groups).all()
+    # put em in a list
     for groupentry in g:
         gidlist.append(groupentry.gid)
+    # finally, check 'em
     gid_set = set(gidlist)
     if gid in gid_set:
         return True
