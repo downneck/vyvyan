@@ -2,8 +2,6 @@ no url-encoded strings for PII!
 
 replace the concept of realm.site_id with domain to be more LDAPy
 
-update validation: v_uid_in_db/v_gid_in_db to use domain and not realm.site
-
 add passwords
 
 spit jinja2 templates back using API instead of files so CLI can be run anywhere
