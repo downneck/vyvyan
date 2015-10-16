@@ -868,20 +868,20 @@ class API_userdata:
 
             # got a user, populate the return 
             if u:
-                shank = {}
-                shank['user'] = u.to_dict()
-                shank['groups'] = []
+                ret = {}
+                ret['user'] = u.to_dict()
+                ret['groups'] = []
                 # user exists, find out what groups it's in 
                 glist = self.__get_groups_by_user(u.username, u.domain)
                 if glist:
                     for g in glist:
-                        shank['groups'].append(g.to_dict())
+                        ret['groups'].append(g.to_dict())
             else:
                 self.cfg.log.debug("API_userdata/udisplay: user %s not found." % query['username'])
                 raise UserdataError("API_userdata/udisplay: user %s not found" % query['username'])
 
             # return's populated, return it
-            return shank
+            return ret
 
         except Exception, e:
             self.cfg.log.debug("API_userdata/udisplay: %s" % e) 
