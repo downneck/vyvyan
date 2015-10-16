@@ -18,16 +18,15 @@
 """
 
 from sqlalchemy import or_, desc, MetaData
-
+import sys
+import traceback
 import vyvyan
 from vyvyan.vyvyan_models import *
 from vyvyan.common import *
-#from vyvyan.API_list_servers import *
-#from vyvyan.API_kv import *
 from vyvyan.validate import *
 
 class UserdataError(Exception):
-    pass
+    pass      
 
 class API_userdata:
 
@@ -734,7 +733,7 @@ class API_userdata:
             for g in grouptable:
                 if g.domain not in buf.keys():
                   buf[g.domain] = []
-            for u in grouptable:
+            for g in grouptable:
                 buf[g.domain].append("%s gid:%s" % (g.groupname, g.gid))
 
             # if the user specified a domain but it's empty
@@ -855,7 +854,7 @@ class API_userdata:
             # if the user specifies a domain, restrict output.
             # otherwise return userdata for all domains
             if 'domain' not in query.keys() or not query['domain']:
-                query['domain'] = None
+                query['domain'] = cfg.default_domain
 
             # check for min/max number of optional arguments
             common.check_num_opt_args(query, self.namespace, 'udisplay')
@@ -868,24 +867,21 @@ class API_userdata:
                 raise UserdataError("API_userdata/udisplay: user %s not found (domain: %s)" % (query['username'], query['domain']))
 
             # got a user, populate the return 
-            ret = []
             if u:
-                for usr in u:
-                    shank = {}
-                    shank['user'] = u.to_dict()
-                    shank['groups'] = []
-                    # user exists, find out what groups it's in 
-                    glist = self.__get_groups_by_user(usr['username'], usr['domain'])
-                    if glist:
-                        for g in glist:
-                            shank['groups'].append(g.to_dict())
-                    ret.append(shank)
+                shank = {}
+                shank['user'] = u.to_dict()
+                shank['groups'] = []
+                # user exists, find out what groups it's in 
+                glist = self.__get_groups_by_user(u.username, u.domain)
+                if glist:
+                    for g in glist:
+                        shank['groups'].append(g.to_dict())
             else:
-                self.cfg.log.debug("API_userdata/udisplay: user %s not found." % username)
-                raise UserdataError("API_userdata/udisplay: user %s not found" % username)
+                self.cfg.log.debug("API_userdata/udisplay: user %s not found." % query['username'])
+                raise UserdataError("API_userdata/udisplay: user %s not found" % query['username'])
 
             # return's populated, return it
-            return ret
+            return shank
 
         except Exception, e:
             self.cfg.log.debug("API_userdata/udisplay: %s" % e) 
@@ -1242,14 +1238,14 @@ class API_userdata:
                     raise UserdataError("API_userdata/uclone: unknown querykey \"%s\"\ndumping valid_qkeys: %s" % (qk, valid_qkeys))
 
             # input validation for new domain
-            v_domain(self.cfg, query['domain'])
+            v_domain(query['domain'])
 
             # find us a username to clone, validation done in the __get_user_obj function
-            u = self.__get_user_obj(username, domain) 
+            u = self.__get_user_obj(query['username'], query['domain']) 
             if u:
                 query = {
-                    'username': username,
-                    'domain': newdomain,
+                    'username': query['username'],
+                    'domain': query['newdomain'],
                     'first_name': u.first_name,
                     'last_name': u.last_name,
                     'uid': u.uid,
@@ -1260,11 +1256,11 @@ class API_userdata:
                     'home_dir': u.hdir,
                 }
                 self.uadd(query)
-                self.cfg.log.debug("API_userdata/uclone: created user %s in domain %s based on domain %s" % (username, newdomain, domain))
+                self.cfg.log.debug("API_userdata/uclone: created user %s in query['domain'] %s based on query['domain'] %s" % (query['username'], query['newdomain'], query['domain']))
                 return "success"
             else:
-                self.cfg.log.debug("API_userdata/uclone: user %s not found in domain %s" % (username, domain))
-                raise UserdataError("API_userdata/uclone: user %s not found in %s" % (username, domain))
+                self.cfg.log.debug("API_userdata/uclone: user %s not found in query['domain'] %s" % (query['username'], query['domain']))
+                raise UserdataError("API_userdata/uclone: user %s not found in %s" % (query['username'], query['domain']))
 
         except Exception, e:
             # something odd happened, explode violently
