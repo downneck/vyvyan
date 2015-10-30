@@ -1,5 +1,3 @@
-no url-encoded strings for PII!
-
 replace the concept of realm.site_id with domain to be more LDAPy
 
 add password validation rules
