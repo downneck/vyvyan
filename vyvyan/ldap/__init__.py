@@ -14,7 +14,7 @@
 """
 this module holds methods for dealing with LDAP
 this should only, generally speaking, be used to talk with an LDAP server
-all user interaction should be done in the vyvyan.users module
+all user interaction should be done in the vyvyan.API_userdata module
 """
 
 # imports
@@ -22,7 +22,6 @@ import os
 import ldap
 import vyvyan.validate
 import vyvyan.users
-#import vyvyan.kv
 
 # db imports
 from vyvyan.vyvyan_models import *
@@ -30,76 +29,41 @@ from vyvyan.vyvyan_models import *
 class LDAPError(Exception):
     pass
 
-# figure out what ldap server to talk to
-def __get_master(cfg, realm_path):
+def ld_connect(cfg, server):
     """
     [description]
-    looks up the ldap master for a given realm_path
+    open a connection to an LDAP server 
 
     [parameter info]
     required:
         cfg: the config object. useful everywhere
-        realm_path: the realm path we need a server for. format is realm.site_id
-
-    [return value]
-    returns the fqdn for the ldap master server in this realm_path
-    """
-
-    fqn = vyvyan.validate.v_get_fqn(cfg, realm_path)
-    realm, site_id, domain = vyvyan.validate.v_split_fqn(fqn)
-
-    serv = list(cfg.dbsess.query(Server).\
-    filter(Server.tag=='ldap').\
-    filter(Server.realm==realm).\
-    filter(Server.site_id==site_id).\
-    filter(Server.tag_index=='1').all())
-
-    if len(serv) > 1:
-        raise LDAPError("more than one master ldap server found for \"%s\", aborting.\nPlease fix your ldap tag indexes" % realm_path)
-    elif not serv:
-        return None
-
-    # i hate this so much...
-    serv = serv[0]
-    return serv.hostname+'.'+realm_path
-
-
-def ld_connect(cfg, ldap_master):
-    """
-    [description]
-    open a connection to the ldap master
-
-    [parameter info]
-    required:
-        cfg: the config object. useful everywhere
-        ldap_master: the master ldap server to use 
+        server: server to connect to
 
     [return value]
     returns the open ldap connection object 
     """
 
-    d = cfg.domain.split('.')
-
-    admin_cn = str(vyvyan.kv.select(cfg, ldap_master, key="ldap_admin_cn")).split('=')[1]
-    admin_pass = str(vyvyan.kv.select(cfg, ldap_master, key="ldap_admin_pass")).split('=')[1]
-    admin_dn = "cn=%s,dc=" % admin_cn
-    admin_dn += ',dc='.join(d)
-    ld_server_string = "ldap://"+ldap_master
+    admin_cn = cfg.ldap_admin_cn 
+    admin_pass = cfg.ldap_admin_pass
+    # i truly hate how needlessly complex ldap is.
+    admin_dn = "cn=%s,dc=%s" % (admin_cn, ',dc='.join(cfg.default_domain.split('.')))
+    ld_server_string = "ldaps://"+server
 
     # init the connection to the ldap server
     try:
         ldcon = ldap.initialize(ld_server_string)
-        ldcon.simple_bind_s(admin_dn, admin_pass)
-    except ldap.LDAPError:
-        print "error connecting to ldap server: %s" % ldap_master
-        print "INFO DUMP:\n"
-        print "admin_dn: %s\nadmin_pass: %s\nld_server_string: %s" % (admin_dn, admin_pass, ld_server_string)
-        print "\nLDAP Messages:\n"
+        ldcon.simple_bind_s(admin_dn, cfg.ldap_admin_pass)
+    except ldap.LDAPError, e:
+        cfg.log.debug("error connecting to ldap server: %s" % ldap_master)
+        cfg.log.debug("INFO DUMP:\n")
+        cfg.log.debug("admin_dn: %s\nld_server_string: %s" % (admin_dn, ld_server_string))
+        raise LDAPError(e)
 
+    # we managed to open a connection. return it so it can be useful to others
     return ldcon
 
 
-def uadd(cfg, username):
+def uadd(cfg, user):
     """
     [description]
     add a user to ldap
@@ -107,66 +71,67 @@ def uadd(cfg, username):
     [parameter info]
     required:
         cfg: the config object. useful everywhere
-        username: the username to add 
+        user: the ORM user object
 
     [return value]
     no explicit return 
     """
 
-    # get user object
-    u = vyvyan.validate.v_get_user_obj(cfg, username)
     # an array made of the domain parts.
-    d = cfg.domain.split('.')
+    domain_parts = user.domain.split('.')
 
-    if u:
-        if not u.active:
-            raise LDAPError("user %s is not active. please set the user active, first." % u.username)
-        # get ldap master info
-        ldap_master = __get_master(cfg, u.realm+'.'+u.site_id)
+    if user:
+        if not user.active:
+            raise LDAPError("user %s is not active. please set the user active, first." % user.username)
     else:
         raise LDAPError("user \"%s\" not found, aborting" % username)
 
-    # create a connection to the ldap master
-    ldcon = ld_connect(cfg, ldap_master)
-
-    dn = "uid=%s,ou=%s,dc=" % (u.username, cfg.ldap_users_ou)
-    dn += ',dc='.join(d)
+    dn = "uid=%s,ou=%s,dc=" % user.username
+    dn += ',dc='.join(domain_parts)
     # stitch together the LDAP, fire it into the ldap master server 
     try:
         add_record = [('objectclass', ['inetOrgPerson','person','ldapPublicKey','posixAccount'])]
-        full_name = u.first_name + " " + u.last_name
-        if u.ssh_public_key:
-            attributes = [('cn', u.username),
-                          ('sn', u.last_name),
+        full_name = user.first_name + " " + user.last_name
+        if user.ssh_public_key:
+            attributes = [('cn', user.username),
+                          ('sn', user.last_name),
                           ('gecos', full_name),
-                          ('uid', u.username),
-                          ('uidNumber', str(u.uid)),
+                          ('uid', user.username),
+                          ('uidNumber', str(user.uid)),
                           ('gidNumber', cfg.ldap_default_gid),
-                          ('homeDirectory', u.hdir),
-                          ('loginShell', u.shell),
-                          ('mail', u.email),
-                          ('sshPublicKey', u.ssh_public_key),
+                          ('homeDirectory', user.hdir),
+                          ('loginShell', user.shell),
+                          ('mail', user.email),
+                          ('sshPublicKey', user.ssh_public_key),
                          ]
         else:
-            attributes = [('cn', u.username),
-                          ('sn', u.last_name),
+            attributes = [('cn', user.username),
+                          ('sn', user.last_name),
                           ('gecos', full_name),
-                          ('uid', u.username),
-                          ('uidNumber', str(u.uid)),
+                          ('uid', user.username),
+                          ('uidNumber', str(user.uid)),
                           ('gidNumber', cfg.ldap_default_gid),
-                          ('homeDirectory', u.hdir),
-                          ('loginShell', u.shell),
-                          ('mail', u.email),
+                          ('homeDirectory', user.hdir),
+                          ('loginShell', user.shell),
+                          ('mail', user.email),
                          ]
         add_record += attributes
-        print "adding ldap user entry for %s" % (u.username+'.'+u.realm+'.'+u.site_id)
-        ldcon.add_s(dn,add_record)
-    except ldap.LDAPError, e:
-        raise LDAPError(e)
 
-    # close the LDAP connection
-    ldcon.unbind()
+    # connect to each ldap server and do stuff
+    for server in cfg.ldap_servers:
+        # create a connection to the server 
+        ldcon = ld_connect(cfg, server)
+            print "adding ldap user entry for user %s to domain %s" % (user.username, user.domain)
+            ldcon.add_s(dn,add_record)
+        except ldap.LDAPError, e:
+            # don't leave dangling connections
+            ldcon.unbind()
+            raise LDAPError(e)
+        # close the LDAP connection
+        ldcon.unbind()
 
+#DONE TO HERE
+# MARK
 
 def uremove(cfg, username):
     """
