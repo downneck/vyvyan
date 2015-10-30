@@ -87,7 +87,7 @@ users_and_groups:
   # default in OpenLDAP. feel free to change this if 
   # you're using an LDAP server that allows larger salt 
   # minimum is 4, maximum is 16
-  salt_size: '4' 
+  salt_size: 4
 
   # A list containing valid user types
   user_types: ['employee', 'consultant', 'system']
