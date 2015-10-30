@@ -279,14 +279,16 @@ def callable_path(pname, callpath):
 
     # assuming we're authed, do stuff
     try:
-        query = bottle.request.GET
+        query = bottle.request.POST
+        # uncomment for debugging
+        #cfg.log.debug(query)
         filesdata = bottle.request.files
         files = []
         for kkkk in filesdata.keys():
             files.append(filesdata[kkkk].file)
         pnameMetadata = cfg.module_metadata[pname]
         pnameMetadata.metadata['templates'] = cfg.module_templates[pname]
-#MARK
+
         # every API module has a 'metadata' construct
         # hard wire it into callpath options
         # this is an info-level request so no re-auth

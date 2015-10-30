@@ -132,7 +132,7 @@ def call_command(cfg, module_map):
         revmodule_map = swap_dict(module_map)
         module = "API_userdata"
         call = sys.argv[1]
-        buf = "" # our argument buffer for urlencoding
+        buf = {} # our argument buffer for urlencoding
         if module in revmodule_map.keys():
             module = revmodule_map[module] 
         elif 'API_'+module in module_map.keys():
@@ -191,13 +191,9 @@ def call_command(cfg, module_map):
         else:
             required_args = [] 
 
-        # parse our options and build a urlencode string to pass
+        # parse our options and build a JSON data payload to pass
         # over to the API service
         # 
-        # TODO: need to use POST data for PII (usernames, passwords)
-        #       will need to figure out a better way to do this 
-        #
-        # spaces in URLs make vyvyan sad, so replace with %20
         (options, args) = parser.parse_args(sys.argv[2:])
         files = {}
         for k in arglist.keys():
@@ -208,34 +204,27 @@ def call_command(cfg, module_map):
             if a and k and arglist[k] == "file":
                 files[k] = open(a)
 
-            # if the variable type isn't "file", jam the query onto
-            # the end of our query string buffer
+            # if the variable type isn't "file", jam the argument into
+            # our query buffer
             elif a and k:
-                if buf:
-                    buf += '&'
-                if a != True:
-                    buf += k+'='+str(a.replace(' ', '%20'))
-                else:
-                    buf += k
+                buf[k] = a
 
             # if options[k] is empty and is a required option, explode
             elif not a and k in required_args: 
                 raise VyvyanCLIError(get_command_args(cfg, module_map))
 
-            # this just means's it's an unpopulated optional argument
-            # TODO: do we need this? -dk
-            else:
-                pass
+        # make sure we send this as json, not str
+        headers = {"Content-Type":"application/json"}
 
         # make the call out to our API daemon, expect JSON back
         if mmeta['data']['methods'][call]['rest_type'] == 'GET':
-            callresponse = requests.get('http://'+cfg.api_server+':'+cfg.api_port+'/'+module+'/'+call+'?'+buf, auth=(cfg.api_admin_user, cfg.api_admin_pass))
+            callresponse = requests.get('http://'+cfg.api_server+':'+cfg.api_port+'/'+module+'/'+call, data=buf, auth=(cfg.api_admin_user, cfg.api_admin_pass), headers=headers)
         elif mmeta['data']['methods'][call]['rest_type'] == 'POST':
-            callresponse = requests.post('http://'+cfg.api_server+':'+cfg.api_port+'/'+module+'/'+call+'?'+buf, files=files, auth=(cfg.api_admin_user, cfg.api_admin_pass))
+            callresponse = requests.post('http://'+cfg.api_server+':'+cfg.api_port+'/'+module+'/'+call, data=buf, files=files, auth=(cfg.api_admin_user, cfg.api_admin_pass), headers=headers)
         elif mmeta['data']['methods'][call]['rest_type'] == 'DELETE':
-            callresponse = requests.delete('http://'+cfg.api_server+':'+cfg.api_port+'/'+module+'/'+call+'?'+buf, auth=(cfg.api_admin_user, cfg.api_admin_pass))
+            callresponse = requests.delete('http://'+cfg.api_server+':'+cfg.api_port+'/'+module+'/'+call, data=buf, auth=(cfg.api_admin_user, cfg.api_admin_pass), headers=headers)
         elif mmeta['data']['methods'][call]['rest_type'] == 'PUT':
-            callresponse = requests.put('http://'+cfg.api_server+':'+cfg.api_port+'/'+module+'/'+call+'?'+buf, files=files, auth=(cfg.api_admin_user, cfg.api_admin_pass))
+            callresponse = requests.put('http://'+cfg.api_server+':'+cfg.api_port+'/'+module+'/'+call, data=buf, files=files, auth=(cfg.api_admin_user, cfg.api_admin_pass), headers=headers)
 
         # load the JSON response into the equivalent python variable type
         responsedata = myjson.loads(callresponse.content)
