@@ -45,7 +45,7 @@ def ld_connect(cfg, server):
 
     admin_cn = cfg.ldap_admin_cn 
     admin_pass = cfg.ldap_admin_pass
-    # i truly hate how needlessly complex ldap is.
+    # i truly hate how needlessly complex ldap is. -dk
     admin_dn = "cn=%s,dc=%s" % (admin_cn, ',dc='.join(cfg.default_domain.split('.')))
     ld_server_string = "ldaps://"+server
 
@@ -76,26 +76,28 @@ def uadd(cfg, user):
     [return value]
     no explicit return 
     """
-
-    # an array made of the domain parts.
-    domain_parts = user.domain.split('.')
-
+    # just checking....
     if user:
         if not user.active:
             raise LDAPError("user %s is not active. please set the user active, first." % user.username)
     else:
-        raise LDAPError("user \"%s\" not found, aborting" % username)
+        raise LDAPError("empty ORM object passed for user")
 
-    dn = "uid=%s,ou=%s,dc=" % user.username
-    dn += ',dc='.join(domain_parts)
     # stitch together the LDAP, fire it into the ldap master server 
     try:
+        # construct an array made of the domain parts, stitch it back together in a way
+        # that LDAP will understand
+        domain_parts = user.domain.split('.')
+        dn = "uid=%s,ou=%s,dc=" % (user.username, cfg.ldap_users_ou)
+        dn += ',dc='.join(domain_parts)
+
         add_record = [('objectclass', ['inetOrgPerson','person','ldapPublicKey','posixAccount'])]
         full_name = user.first_name + " " + user.last_name
         if user.ssh_public_key:
-            attributes = [('cn', user.username),
+            attributes = [('gn', user.first_name),
                           ('sn', user.last_name),
                           ('gecos', full_name),
+                          ('cn', full_name),
                           ('uid', user.username),
                           ('uidNumber', str(user.uid)),
                           ('gidNumber', cfg.ldap_default_gid),
@@ -105,9 +107,10 @@ def uadd(cfg, user):
                           ('sshPublicKey', user.ssh_public_key),
                          ]
         else:
-            attributes = [('cn', user.username),
+            attributes = [('gn', user.first_name),
                           ('sn', user.last_name),
                           ('gecos', full_name),
+                          ('cn', full_name),
                           ('uid', user.username),
                           ('uidNumber', str(user.uid)),
                           ('gidNumber', cfg.ldap_default_gid),
@@ -130,10 +133,8 @@ def uadd(cfg, user):
         # close the LDAP connection
         ldcon.unbind()
 
-#DONE TO HERE
-# MARK
 
-def uremove(cfg, username):
+def uremove(cfg, user):
     """
     [description]
     remove a user
@@ -141,33 +142,35 @@ def uremove(cfg, username):
     [parameter info]
     required:
         cfg: the config object. useful everywhere
-        username: the user to remove 
+        user: the ORM user object
 
     [return value]
     no explicit return
     """
+    # just checking...
+    if not user:
+        raise LDAPError("empty ORM object passed for user")
 
-    # get user object
-    u = vyvyan.validate.v_get_user_obj(cfg, username)
-    # an array made of the domain parts.
-    d = cfg.domain.split('.')
-
-    if u:
-        # get ldap master info, stitch together some dn info
-        ldap_master = __get_master(cfg, u.realm+'.'+u.site_id)
-        dn = "uid=%s,ou=%s,dc=" % (u.username, cfg.ldap_users_ou)
-        dn += ',dc='.join(d)
-    else:
-        raise LDAPError("user \"%s\" not found, aborting" % username)
-
-    ldcon = ld_connect(cfg, ldap_master)
-
+    # do the needful
     try:
-        ldcon.delete_s(dn)
-        ldcon.unbind()
+        # construct an array made of the domain parts, stitch it back together in a way
+        # that LDAP will understand
+        domain_parts = user.domain.split('.')
+        dn = "uid=%s,ou=%s,dc=" % (user.username, cfg.ldap_users_ou)
+        dn += ',dc='.join(domain_parts)
+
+        # connect to each ldap server and do stuff
+        for server in cfg.ldap_servers:
+            # create a connection to the server
+            ldcon = ld_connect(cfg, server)
+            ldcon.delete_s(dn)
+            ldcon.unbind()
     except ldap.LDAPError, e:
         raise LDAPError(e)
 
+
+# MARK
+# done to here
 
 def urefresh(cfg, realm_path):
     """
