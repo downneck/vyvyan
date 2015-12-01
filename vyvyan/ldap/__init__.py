@@ -63,7 +63,7 @@ def ld_connect(cfg, server):
     return ldcon
 
 
-def uadd(cfg, user):
+def uadd(cfg, user, server=None):
     """
     [description]
     add a user to ldap
@@ -120,18 +120,27 @@ def uadd(cfg, user):
                          ]
         add_record += attributes
 
-    # connect to each ldap server and do stuff
-    for server in cfg.ldap_servers:
-        # create a connection to the server 
-        ldcon = ld_connect(cfg, server)
-            print "adding ldap user entry for user %s to domain %s" % (user.username, user.domain)
-            ldcon.add_s(dn,add_record)
-        except ldap.LDAPError, e:
-            # don't leave dangling connections
+        # connect ldap server(s) and do stuff
+        if server:
+          servers = [server]
+        else:
+          servers = cfg.ldap_servers
+    
+        for myserver in servers:
+            # create a connection to the server 
+            ldcon = ld_connect(cfg, myserver)
+                print "adding ldap user entry for user %s to domain %s" % (user.username, user.domain)
+                ldcon.add_s(dn,add_record)
+            except ldap.LDAPError, e:
+                # don't leave dangling connections
+                ldcon.unbind()
+                raise LDAPError(e)
+            # close the LDAP connection
             ldcon.unbind()
-            raise LDAPError(e)
-        # close the LDAP connection
-        ldcon.unbind()
+        # give something back to the community
+        return "success" 
+    except ldap.LDAPError, e:
+        raise LDAPError(e)
 
 
 def uremove(cfg, user):
@@ -145,7 +154,7 @@ def uremove(cfg, user):
         user: the ORM user object
 
     [return value]
-    no explicit return
+    returns "success" 
     """
     # just checking...
     if not user:
@@ -165,14 +174,13 @@ def uremove(cfg, user):
             ldcon = ld_connect(cfg, server)
             ldcon.delete_s(dn)
             ldcon.unbind()
+        # give something back to the community
+        return "success" 
     except ldap.LDAPError, e:
         raise LDAPError(e)
 
 
-# MARK
-# done to here
-
-def urefresh(cfg, realm_path):
+def urefresh_all(cfg):
     """
     [description]
     refresh the LDAP users database. drop all users, add them back in again
@@ -180,84 +188,47 @@ def urefresh(cfg, realm_path):
     [parameter info]
     required:
         cfg: the config object. useful everywhere
-        realm_path: realm.site_id to operate in
 
     [return value]
-    no explicit return
+    returns "success" 
     """
 
-    fqn = vyvyan.validate.v_get_fqn(cfg, realm_path)
-    realm, site_id, domain = vyvyan.validate.v_split_fqn(fqn)
-    # an array made of the domain parts.
-    d = cfg.domain.split('.')
+    # make an array made of the domain parts. stitch it back together in a way
+    # ldap will understand
+    domain_parts = cfg.default_domain.split('.')
+    dn ="ou=%s,dc=" % cfg.ldap_users_ou
+    dn += ',dc='.join(domain_parts)
 
+    # some vars we'll need later
     dnlist = []
     userlist = []
-    ldap_master = __get_master(cfg, realm+'.'+site_id)
-    dn ="ou=%s,dc=" % cfg.ldap_users_ou
-    dn += ',dc='.join(d)
-    ldcon = ld_connect(cfg, ldap_master)
-    search = '(objectClass=person)'
-
-    for result in ldcon.search_s(dn, ldap.SCOPE_SUBTREE, search):
-        dnlist.append(result[0])
-
-    print "This command will completely wipe out all forms of life in the ldap database on %s" % ldap_master
-    ans = raw_input("to completely refresh the ldap database type \"refresh_%s\": " % ldap_master)
-
-    if ans != "refresh_%s" % ldap_master:
-        raise LDAPError("aborted by user input")
-
-    for user in cfg.dbsess.query(Users).\
-    filter(Users.realm==realm).\
-    filter(Users.site_id==site_id).\
-    filter(Users.active==True).all():
-        userlist.append(user.username+'.'+realm+'.'+site_id)
-
-    for dn in dnlist:
-        ldcon.delete_s(dn)
-    for user in userlist:
-        uadd(cfg, user)
-
-    print "Users database has been dropped and refreshed using Vyvyan data."
-
-def udisplay(cfg, username):
-    """
-    [description]
-    display a user's ldap info
-
-    [parameter info]
-    required:
-        cfg: the config object. useful everywhere
-        username: the user to display
-
-    [return value]
-    no explicit return
-    """
-
-    # get user object
-    u = vyvyan.validate.v_get_user_obj(cfg, username)
-    # an array made of the domain parts.
-    d = cfg.domain.split('.')
-
-    if u:
-        # get ldap master info, stitch together some dn info
-        ldap_master = __get_master(cfg, u.realm+'.'+u.site_id)
-        dn = "uid=%s,ou=%s,dc=" % (u.username, cfg.ldap_users_ou)
-        dn += ',dc='.join(d)
-    else:
-        raise LDAPError("user \"%s\" not found, aborting" % username)
-
-    ldcon = ld_connect(cfg, ldap_master)
 
     try:
-        raw_res = ldcon.search_s(dn, ldap.SCOPE_BASE)
-        print raw_res 
-        ldcon.unbind()
+        # construct our user list
+        for user in cfg.dbsess.query(Users).\
+        filter(Users.active==True).all():
+            userlist.append(user)
+
+        # connect to each ldap server and do stuff
+        for myserver in cfg.ldap_servers:
+            # create a connection to the server
+            ldcon = ld_connect(cfg, myserver)
+            search = '(objectClass=person)'
+            # ALL USERS BALEETED
+            for result in ldcon.search_s(dn, ldap.SCOPE_SUBTREE, search):
+                dnlist.append(result[0])
+                for d in dnlist:
+                    ldcon.delete_s(d)
+            # add the users back in
+            for user in userlist:
+                uadd(cfg, user, server=myserver)
+        # give something back to the community
+        return "success" 
     except ldap.LDAPError, e:
-        #print "User \"%s\" not found in the directory on %s" % (u.username, ldap_master)
         raise LDAPError(e)
 
+# MARK
+# done to here
 
 def uupdate(cfg, username):
     """
@@ -506,43 +477,6 @@ def grefresh(cfg, realm_path):
         gadd(cfg, group)
 
     print "groups database has been dropped and refreshed using Vyvyan data."
-
-
-def gdisplay(cfg, groupname):
-    """
-    [description]
-    display a group's ldap info
-
-    [parameter info]
-    required:
-        cfg: the config object. useful everywhere
-        groupname: the group to display 
-
-    [return value]
-    no explicit return 
-    """
-
-    # get group object
-    g = vyvyan.validate.v_get_group_obj(cfg, groupname)
-    # an array made of the domain parts.
-    d = cfg.domain.split('.')
-
-    if g:
-        # get ldap master info, stitch together some dn info
-        ldap_master = __get_master(cfg, g.realm+'.'+g.site_id)
-        dn = "cn=%s,ou=%s,dc=" % (g.groupname, cfg.ldap_groups_ou)
-        dn += ',dc='.join(d)
-    else:
-        raise LDAPError("group \"%s\" not found, aborting" % groupname)
-
-    ldcon = ld_connect(cfg, ldap_master)
-
-    try:
-        raw_res = ldcon.search_s(dn, ldap.SCOPE_BASE)
-        print raw_res
-        ldcon.unbind()
-    except ldap.LDAPError, e:
-        raise LDAPError(e)
 
 
 def ldapimport(cfg, realm_path):
