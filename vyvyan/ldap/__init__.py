@@ -230,55 +230,56 @@ def urefresh_all(cfg):
 # MARK
 # done to here
 
-def uupdate(cfg, username):
-    """
-    [description]
-    update a user entry
-
-    [parameter info]
-    required:
-        cfg: the config object. useful everywhere
-        username: the user to update
-
-    [return value]
-    no explicit return 
-    """
-
-    # get user object
-    u = vyvyan.validate.v_get_user_obj(cfg, username)
-    # an array made of the domain parts.
-    d = cfg.domain.split('.')
-
-    if u:
-        if not u.active:
-            raise LDAPError("user %s is not active. please set the user active, first." % u.username)
-        # get ldap master info
-        ldap_master = __get_master(cfg, u.realm+'.'+u.site_id)
-    else:
-        raise LDAPError("user \"%s\" not found, aborting" % username)
-
-    # create a connection to the ldap master
-    ldcon = ld_connect(cfg, ldap_master)
-
-    dn = "uid=%s,ou=%s,dc=" % (u.username, cfg.ldap_users_ou)
-    dn += ',dc='.join(d)
-    # stitch together the LDAP, fire it into the ldap master server 
-    try:
-        full_name = u.first_name + " " + u.last_name
-        mod_record = [(ldap.MOD_REPLACE, 'sn', u.last_name),
-                      (ldap.MOD_REPLACE, 'gecos', full_name),
-                      (ldap.MOD_REPLACE, 'uidNumber', str(u.uid)),
-                      (ldap.MOD_REPLACE, 'homeDirectory', u.hdir),
-                      (ldap.MOD_REPLACE, 'loginShell', u.shell),
-                      (ldap.MOD_REPLACE, 'mail', u.email),
-                      (ldap.MOD_REPLACE, 'sshPublicKey', u.ssh_public_key),
-                     ]
-        ldcon.modify_s(dn, mod_record)
-    except ldap.LDAPError, e:
-        raise LDAPError(e)
-
-    # close the LDAP connection
-    ldcon.unbind()
+# we may get rid of this completely...
+#def uupdate(cfg, user):
+#    """
+#    [description]
+#    update a user entry
+#
+#    [parameter info]
+#    required:
+#        cfg: the config object. useful everywhere
+#        user: the ORM user object
+#
+#    [return value]
+#    no explicit return 
+#    """
+#
+#    # get user object
+#    u = vyvyan.validate.v_get_user_obj(cfg, username)
+#    # an array made of the domain parts.
+#    d = cfg.domain.split('.')
+#
+#    if u:
+#        if not u.active:
+#            raise LDAPError("user %s is not active. please set the user active, first." % u.username)
+#        # get ldap master info
+#        ldap_master = __get_master(cfg, u.realm+'.'+u.site_id)
+#    else:
+#        raise LDAPError("user \"%s\" not found, aborting" % username)
+#
+#    # create a connection to the ldap master
+#    ldcon = ld_connect(cfg, ldap_master)
+#
+#    dn = "uid=%s,ou=%s,dc=" % (u.username, cfg.ldap_users_ou)
+#    dn += ',dc='.join(d)
+#    # stitch together the LDAP, fire it into the ldap master server 
+#    try:
+#        full_name = u.first_name + " " + u.last_name
+#        mod_record = [(ldap.MOD_REPLACE, 'sn', u.last_name),
+#                      (ldap.MOD_REPLACE, 'gecos', full_name),
+#                      (ldap.MOD_REPLACE, 'uidNumber', str(u.uid)),
+#                      (ldap.MOD_REPLACE, 'homeDirectory', u.hdir),
+#                      (ldap.MOD_REPLACE, 'loginShell', u.shell),
+#                      (ldap.MOD_REPLACE, 'mail', u.email),
+#                      (ldap.MOD_REPLACE, 'sshPublicKey', u.ssh_public_key),
+#                     ]
+#        ldcon.modify_s(dn, mod_record)
+#    except ldap.LDAPError, e:
+#        raise LDAPError(e)
+#
+#    # close the LDAP connection
+#    ldcon.unbind()
 
 
 def gadd(cfg, groupname):
