@@ -227,60 +227,81 @@ def urefresh_all(cfg):
     except ldap.LDAPError, e:
         raise LDAPError(e)
 
-# MARK
-# done to here
 
 # we may get rid of this completely...
-#def uupdate(cfg, user):
-#    """
-#    [description]
-#    update a user entry
-#
-#    [parameter info]
-#    required:
-#        cfg: the config object. useful everywhere
-#        user: the ORM user object
-#
-#    [return value]
-#    no explicit return 
-#    """
-#
-#    # get user object
-#    u = vyvyan.validate.v_get_user_obj(cfg, username)
-#    # an array made of the domain parts.
-#    d = cfg.domain.split('.')
-#
-#    if u:
-#        if not u.active:
-#            raise LDAPError("user %s is not active. please set the user active, first." % u.username)
-#        # get ldap master info
-#        ldap_master = __get_master(cfg, u.realm+'.'+u.site_id)
-#    else:
-#        raise LDAPError("user \"%s\" not found, aborting" % username)
-#
-#    # create a connection to the ldap master
-#    ldcon = ld_connect(cfg, ldap_master)
-#
-#    dn = "uid=%s,ou=%s,dc=" % (u.username, cfg.ldap_users_ou)
-#    dn += ',dc='.join(d)
-#    # stitch together the LDAP, fire it into the ldap master server 
-#    try:
-#        full_name = u.first_name + " " + u.last_name
-#        mod_record = [(ldap.MOD_REPLACE, 'sn', u.last_name),
-#                      (ldap.MOD_REPLACE, 'gecos', full_name),
-#                      (ldap.MOD_REPLACE, 'uidNumber', str(u.uid)),
-#                      (ldap.MOD_REPLACE, 'homeDirectory', u.hdir),
-#                      (ldap.MOD_REPLACE, 'loginShell', u.shell),
-#                      (ldap.MOD_REPLACE, 'mail', u.email),
-#                      (ldap.MOD_REPLACE, 'sshPublicKey', u.ssh_public_key),
-#                     ]
-#        ldcon.modify_s(dn, mod_record)
-#    except ldap.LDAPError, e:
-#        raise LDAPError(e)
-#
-#    # close the LDAP connection
-#    ldcon.unbind()
+def uupdate(cfg, user, server=None):
+    """
+    [description]
+    update a user entry
 
+    [parameter info]
+    required:
+        cfg: the config object. useful everywhere
+        user: the ORM user object
+
+    [return value]
+    no explicit return 
+    """
+    try:
+        # construct an array made of the domain parts, stitch it back together in a way
+        # that LDAP will understand
+        domain_parts = user.domain.split('.')
+        dn = "uid=%s,ou=%s,dc=" % (user.username, cfg.ldap_users_ou)
+        dn += ',dc='.join(domain_parts)
+    
+        # we only really care about active users
+        if not user.active:
+            raise LDAPError("user %s is not active. please set the user active, first." % u.username)
+    
+        # connect ldap server(s) and do stuff
+        if server:
+            servers = [server]
+        else:
+            servers = cfg.ldap_servers
+    
+    
+        # stitch together the LDAP, fire it into the ldap master server 
+        full_name = user.first_name + " " + user.last_name
+        if user.ssh_public_key:
+            mod_record = [(ldap.MOD_REPLACE, 'gn', user.first_name),
+                          (ldap.MOD_REPLACE, 'sn', user.last_name),
+                          (ldap.MOD_REPLACE, 'gecos', full_name),
+                          (ldap.MOD_REPLACE, 'cn', full_name),
+                          (ldap.MOD_REPLACE, 'uidNumber', str(user.uid)),
+                          (ldap.MOD_REPLACE, 'gidNumber', cfg.ldap_default_gid),
+                          (ldap.MOD_REPLACE, 'homeDirectory', user.hdir),
+                          (ldap.MOD_REPLACE, 'loginShell', user.shell),
+                          (ldap.MOD_REPLACE, 'mail', user.email),
+                          (ldap.MOD_REPLACE, 'sshPublicKey', user.ssh_public_key),
+                         ]
+        else:
+            mod_record = [(ldap.MOD_REPLACE, 'gn', user.first_name),
+                          (ldap.MOD_REPLACE, 'sn', user.last_name),
+                          (ldap.MOD_REPLACE, 'gecos', full_name),
+                          (ldap.MOD_REPLACE, 'cn', full_name),
+                          (ldap.MOD_REPLACE, 'uidNumber', str(user.uid)),
+                          (ldap.MOD_REPLACE, 'gidNumber', cfg.ldap_default_gid),
+                          (ldap.MOD_REPLACE, 'homeDirectory', user.hdir),
+                          (ldap.MOD_REPLACE, 'loginShell', user.shell),
+                          (ldap.MOD_REPLACE, 'mail', user.email),
+                         ]
+
+        # do the needful, once for each server in the array 
+        for myserver in servers:
+            # create a connection to the server
+            ldcon = ld_connect(cfg, myserver)
+                print "updating ldap user entry for user %s on domain %s" % (user.username, user.domain)
+                ldcon.modify_s(dn, mod_record)
+            # close the LDAP connection
+            ldcon.unbind()
+        # give something back to the community
+        return "success"
+    except ldap.LDAPError, e:
+        ldcon.unbind()
+        raise LDAPError(e)
+
+# MARK
+# done to here
 
 def gadd(cfg, groupname):
     """
