@@ -320,22 +320,30 @@ def gadd(cfg, group, server=None):
         # construct an array made of the domain parts, stitch it back together in a way
         # that LDAP will understand to create our group
         domain_parts = group.domain.split('.')
-        dn = "cn=%s,ou=%s,dc=" % (group.groupname, cfg.ldap_groups_ou)
-        dn += ',dc='.join(domain_parts)
+        gdn = "cn=%s,ou=%s,dc=" % (group.groupname, cfg.ldap_groups_ou)
+        gdn += ',dc='.join(domain_parts)
+        ngdn = "cn=%s,ou=%s,dc=" % (group.groupname, cfg.ldap_netgroups_ou)
+        ngdn += ',dc='.join(domain_parts)
 
         if group:
-            # construct the list of users in this group two ways
-            # ACHTUNG: we may not need both of these. test this!
-            memberoflist = []
-            memberlist = []
+            # construct the list of users in this group three ways
+            # ACHTUNG: we may not need both memberlist and memberoflist. test this!
+            memberoflist = [] # groupOfNames stylee
+            memberlist = [] # posixGroup steez
+            netgrouplist = [] # nisNetgroups are still a thing?
+            # iterate over all users assigned to this group
             for ugmap in cfg.dbsess.query(UserGroupMapping).\
                     filter(UserGroupMapping.groups_id==group.id):
                 user = cfg.dbsess.query(Users).\
                 filter(Users.id==ugmap.users_id).first()
+                # construct the memberOf list for groupOfNames
                 memberoflist.append(user.username)
+                # construct the member list for posixGroup
                 ldap_user_dn = "uid=%s,ou=%s,dc=" % (user.username, cfg.ldap_groups_ou)
                 ldap_user_dn += ',dc='.join(domain_parts)
                 memberlist.append(ldap_user_dn)
+                # construct the netgroup list for nisNetgroup
+                netgrouplist.append("(-,%s,)" % user.username)
         else:
             raise LDAPError("group object not supplied, aborting")
     
@@ -347,27 +355,46 @@ def gadd(cfg, group, server=None):
     
         for myserver in servers:
             # create a connection to the ldap server
-            ldcon = ld_connect(cfg, ldap_master)
+            ldcon = ld_connect(cfg, myserver)
    
-            # construct the record to add 
-            add_record = [('objectClass', ['top', 'posixGroup', 'groupOfNames'])]
+            # construct the Group record to add 
+            g_add_record = [('objectClass', ['top', 'posixGroup', 'groupOfNames'])]
             if memberoflist:
-                attributes = [('description', group.description),
-                              ('cn', group.groupname),
-                              ('gidNumber', str(group.gid)),
-                              ('memberUid', memberoflist),
-                              ('member', memberlist),
-                             ]
+                g_attributes = [('description', group.description),
+                               ('cn', group.groupname),
+                               ('gidNumber', str(group.gid)),
+                               ('memberUid', memberoflist),
+                               ('member', memberlist),
+                              ]
             else:
-                attributes = [('description', group.description),
-                              ('cn', group.groupname),
-                              ('gidNumber', str(group.gid)),
-                             ]
-            add_record += attributes
-            print "adding ldap group record for %s" % (dn)
+                g_attributes = [('description', group.description),
+                               ('cn', group.groupname),
+                               ('gidNumber', str(group.gid)),
+                              ]
 
-            # slam the record into the server
-            ldcon.add_s(dn, add_record)
+            # construct the nisNetgroup record to add 
+            g_add_record = [('objectClass', ['top', 'nisNetgroup'])]
+            if netgrouplist:
+                g_attributes = [('description', group.description),
+                               ('cn', group.groupname),
+                               ('nisNetgroupTriple', netgrouplist),
+                              ]
+            else:
+                g_attributes = [('description', group.description),
+                               ('cn', group.groupname),
+                              ]
+
+            # stitch the records together
+            g_add_record += g_attributes
+            ng_add_record += ng_attributes
+
+            # talk about our feelings
+            print "adding ldap Group record for %s" % (gdn)
+            print "adding ldap nisNetgroup record for %s" % (ngdn)
+
+            # slam the records into the server
+            ldcon.add_s(gdn, g_add_record)
+            ldcon.add_s(ngdn, ng_add_record)
             ldcon.unbind()
     
         # give something back to the community
