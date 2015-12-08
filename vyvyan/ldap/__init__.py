@@ -21,7 +21,6 @@ all user interaction should be done in the vyvyan.API_userdata module
 import os
 import ldap
 import vyvyan.validate
-import vyvyan.users
 
 # db imports
 from vyvyan.vyvyan_models import *
@@ -258,8 +257,7 @@ def uupdate(cfg, user, server=None):
             servers = [server]
         else:
             servers = cfg.ldap_servers
-    
-    
+
         # stitch together the LDAP, fire it into the ldap master server 
         full_name = user.first_name + " " + user.last_name
         if user.ssh_public_key:
@@ -288,22 +286,24 @@ def uupdate(cfg, user, server=None):
 
         # do the needful, once for each server in the array 
         for myserver in servers:
+
             # create a connection to the server
             ldcon = ld_connect(cfg, myserver)
                 print "updating ldap user entry for user %s on domain %s" % (user.username, user.domain)
                 ldcon.modify_s(dn, mod_record)
+
             # close the LDAP connection
             ldcon.unbind()
+
         # give something back to the community
         return "success"
+
     except ldap.LDAPError, e:
         ldcon.unbind()
         raise LDAPError(e)
 
-# MARK
-# done to here
 
-def gadd(cfg, groupname):
+def gadd(cfg, group, server=None):
     """
     [description]
     add a group
@@ -311,57 +311,74 @@ def gadd(cfg, groupname):
     [parameter info]
     required:
         cfg: the config object. useful everywhere
-        groupname: the group to add
+        group: the ORM group object
 
     [return value]
-    no explicit return 
+    returns "success"
     """
-
-    # get group object
-    g = vyvyan.validate.v_get_group_obj(cfg, groupname)
-    # an array made of the domain parts.
-    d = cfg.domain.split('.')
-
-    if g:
-        # get ldap master info
-        ldap_master = __get_master(cfg, g.realm+'.'+g.site_id)
-        # construct the list of users in this group
-        userlist = []
-        for ugmap in cfg.dbsess.query(UserGroupMapping).\
-                filter(UserGroupMapping.groups_id==g.id):
-            user = cfg.dbsess.query(Users).\
-            filter(Users.id==ugmap.users_id).first()
-            userlist.append(user.username)
-    else:
-        raise LDAPError("group \"%s\" not found, aborting" % groupname)
-
-    # create a connection to the ldap_master server
-    ldcon = ld_connect(cfg, ldap_master)
-
-    # stitch together the LDAP, fire it into the ldap master server 
-    dn = "cn=%s,ou=%s,dc=" % (g.groupname, cfg.ldap_groups_ou)
-    dn += ',dc='.join(d)
     try:
-        add_record = [('objectClass', ['top', 'posixGroup'])]
-        if userlist:
-            attributes = [('description', g.description),
-                          ('cn', g.groupname),
-                          ('gidNumber', str(g.gid)),
-                          ('memberUid', userlist),
-                         ]
+        # construct an array made of the domain parts, stitch it back together in a way
+        # that LDAP will understand to create our group
+        domain_parts = group.domain.split('.')
+        dn = "cn=%s,ou=%s,dc=" % (group.groupname, cfg.ldap_groups_ou)
+        dn += ',dc='.join(domain_parts)
+
+        if group:
+            # construct the list of users in this group two ways
+            # ACHTUNG: we may not need both of these. test this!
+            memberoflist = []
+            memberlist = []
+            for ugmap in cfg.dbsess.query(UserGroupMapping).\
+                    filter(UserGroupMapping.groups_id==group.id):
+                user = cfg.dbsess.query(Users).\
+                filter(Users.id==ugmap.users_id).first()
+                memberoflist.append(user.username)
+                ldap_user_dn = "uid=%s,ou=%s,dc=" % (user.username, cfg.ldap_groups_ou)
+                ldap_user_dn += ',dc='.join(domain_parts)
+                memberlist.append(ldap_user_dn)
         else:
-            attributes = [('description', g.description),
-                          ('cn', g.groupname),
-                          ('gidNumber', str(g.gid)),
-                         ]
-        add_record += attributes
-        print "adding ldap group record for %s" % (g.groupname+'.'+g.realm+'.'+g.site_id)
-        ldcon.add_s(dn, add_record)
+            raise LDAPError("group object not supplied, aborting")
+    
+        # connect ldap server(s) and do stuff
+        if server:
+            servers = [server]
+        else:
+            servers = cfg.ldap_servers
+    
+        for myserver in servers:
+            # create a connection to the ldap server
+            ldcon = ld_connect(cfg, ldap_master)
+   
+            # construct the record to add 
+            add_record = [('objectClass', ['top', 'posixGroup', 'groupOfNames'])]
+            if memberoflist:
+                attributes = [('description', group.description),
+                              ('cn', group.groupname),
+                              ('gidNumber', str(group.gid)),
+                              ('memberUid', memberoflist),
+                              ('member', memberlist),
+                             ]
+            else:
+                attributes = [('description', group.description),
+                              ('cn', group.groupname),
+                              ('gidNumber', str(group.gid)),
+                             ]
+            add_record += attributes
+            print "adding ldap group record for %s" % (dn)
+
+            # slam the record into the server
+            ldcon.add_s(dn, add_record)
+            ldcon.unbind()
+    
+        # give something back to the community
+        return "success"
+
     except ldap.LDAPError, e:
+        ldcon.unbind()
         raise LDAPError(e)
 
-    # close the LDAP connection
-    ldcon.unbind()
+# MARK
+# done to here
 
 
 def gupdate(cfg, groupname):
