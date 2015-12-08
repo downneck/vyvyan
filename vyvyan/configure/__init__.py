@@ -299,6 +299,11 @@ class VyvyanConfigureDaemon(VyvyanConfigure):
             self.ldap_groups_ou = ldconfig['groups_ou']
         else:
             self.ldap_groups_ou = 'groups'
+        # ldap OU (organizational unit) for netgroups. default is "netgroups"
+        if 'netgroups_ou' in ldconfig and ldconfig['netgroups_ou']:
+            self.ldap_netgroups_ou = ldconfig['netgroups_ou']
+        else:
+            self.ldap_netgroups_ou = 'netgroups'
         # LDAP connection success code.
         # DO NOT CHANGE THIS unless you know what you're doing
         # default is 97

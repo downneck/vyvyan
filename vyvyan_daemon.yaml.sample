@@ -145,6 +145,9 @@ ldap:
 
   # OU for groups
   groups_ou: 'groups'
+  
+  # OU for nisNetgroups
+  netgroups_ou: 'netgroups'
 
   # LDAP connection success code.
   # DO NOT CHANGE THIS unless you know what you're doing
