@@ -317,15 +317,15 @@ def gadd(cfg, group, server=None):
     returns "success"
     """
     try:
-        # construct an array made of the domain parts, stitch it back together in a way
-        # that LDAP will understand to create our group
-        domain_parts = group.domain.split('.')
-        gdn = "cn=%s,ou=%s,dc=" % (group.groupname, cfg.ldap_groups_ou)
-        gdn += ',dc='.join(domain_parts)
-        ngdn = "cn=%s,ou=%s,dc=" % (group.groupname, cfg.ldap_netgroups_ou)
-        ngdn += ',dc='.join(domain_parts)
-
         if group:
+            # construct an array made of the domain parts, stitch it back together in a way
+            # that LDAP will understand to create our group
+            domain_parts = group.domain.split('.')
+            gdn = "cn=%s,ou=%s,dc=" % (group.groupname, cfg.ldap_groups_ou)
+            gdn += ',dc='.join(domain_parts)
+            ngdn = "cn=%s,ou=%s,dc=" % (group.groupname, cfg.ldap_netgroups_ou)
+            ngdn += ',dc='.join(domain_parts)
+
             # construct the list of users in this group three ways
             # ACHTUNG: we may not need both memberlist and memberoflist. test this!
             memberoflist = [] # groupOfNames stylee
@@ -375,12 +375,12 @@ def gadd(cfg, group, server=None):
             # construct the nisNetgroup record to add 
             g_add_record = [('objectClass', ['top', 'nisNetgroup'])]
             if netgrouplist:
-                g_attributes = [('description', group.description),
+                ng_attributes = [('description', group.description),
                                ('cn', group.groupname),
                                ('nisNetgroupTriple', netgrouplist),
                               ]
             else:
-                g_attributes = [('description', group.description),
+                ng_attributes = [('description', group.description),
                                ('cn', group.groupname),
                               ]
 
@@ -404,11 +404,8 @@ def gadd(cfg, group, server=None):
         ldcon.unbind()
         raise LDAPError(e)
 
-# MARK
-# done to here
 
-
-def gupdate(cfg, groupname):
+def gupdate(cfg, group, server=None):
     """
     [description]
     update a group
@@ -416,50 +413,91 @@ def gupdate(cfg, groupname):
     [parameter info]
     required:
         cfg: the config object. useful everywhere
-        groupname: the group to update 
+        group: the ORM group object
 
     [return value]
-    no explicit return 
+    returns "success"
     """
-
-    # get group object
-    g = vyvyan.validate.v_get_group_obj(cfg, groupname)
-    # an array made of the domain parts.
-    d = cfg.domain.split('.')
-
-    if g:
-        # get ldap master info
-        ldap_master = __get_master(cfg, g.realm+'.'+g.site_id)
-        # construct the list of users in this group
-        userlist = []
-        for ugmap in cfg.dbsess.query(UserGroupMapping).\
-        filter(UserGroupMapping.groups_id==g.id):
-            user = cfg.dbsess.query(Users).\
-            filter(Users.id==ugmap.users_id).first()
-            userlist.append(user.username)
-    else:
-        raise LDAPError("group \"%s\" not found, aborting" % groupname)
-
-    # create a connection to the ldap_master server
-    ldcon = ld_connect(cfg, ldap_master)
-
-    # stitch together the LDAP, fire it into the ldap master server 
-    dn = "cn=%s,ou=%s,dc=" % (g.groupname, cfg.ldap_groups_ou)
-    dn += ',dc='.join(d)
     try:
-        mod_record = [(ldap.MOD_REPLACE, 'description', g.description),
-                      (ldap.MOD_REPLACE, 'gidNumber', str(g.gid)),
-                      (ldap.MOD_REPLACE, 'memberUid', userlist),
-                     ]
-        ldcon.modify_s(dn, mod_record)
+        if group:
+            # construct an array made of the domain parts, stitch it back together in a way
+            # that LDAP will understand to create our group
+            domain_parts = group.domain.split('.')
+            gdn = "cn=%s,ou=%s,dc=" % (group.groupname, cfg.ldap_groups_ou)
+            gdn += ',dc='.join(domain_parts)
+            ngdn = "cn=%s,ou=%s,dc=" % (group.groupname, cfg.ldap_netgroups_ou)
+            ngdn += ',dc='.join(domain_parts)
+
+            # construct the list of users in this group three ways
+            # ACHTUNG: we may not need both memberlist and memberoflist. test this!
+            memberoflist = [] # groupOfNames stylee
+            memberlist = [] # posixGroup steez
+            netgrouplist = [] # nisNetgroups are still a thing?
+            # iterate over all users assigned to this group
+            for ugmap in cfg.dbsess.query(UserGroupMapping).\
+                    filter(UserGroupMapping.groups_id==group.id):
+                user = cfg.dbsess.query(Users).\
+                filter(Users.id==ugmap.users_id).first()
+                # construct the memberOf list for groupOfNames
+                memberoflist.append(user.username)
+                # construct the member list for posixGroup
+                ldap_user_dn = "uid=%s,ou=%s,dc=" % (user.username, cfg.ldap_groups_ou)
+                ldap_user_dn += ',dc='.join(domain_parts)
+                memberlist.append(ldap_user_dn)
+                # construct the netgroup list for nisNetgroup
+                netgrouplist.append("(-,%s,)" % user.username)
+        else:
+            raise LDAPError("group object not supplied, aborting")
+    
+        # connect ldap server(s) and do stuff
+        if server:
+            servers = [server]
+        else:
+            servers = cfg.ldap_servers
+   
+        for myserver in servers:
+            # create a connection to the ldap server
+            ldcon = ld_connect(cfg, myserver)
+   
+            # construct the Group record to add 
+            if memberoflist:
+                g_attributes = [(ldap.MOD_REPLACE, 'description', group.description),
+                                (ldap.MOD_REPLACE, 'gidNumber', str(group.gid)),
+                                (ldap.MOD_REPLACE, 'memberUid', memberoflist),
+                                (ldap.MOD_REPLACE, 'member', memberlist),
+                               ]
+            else:
+                g_attributes = [(ldap.MOD_REPLACE, 'description', group.description),
+                                (ldap.MOD_REPLACE, 'gidNumber', str(group.gid)),
+                               ]
+
+            # construct the nisNetgroup record to add 
+            if netgrouplist:
+                ng_attributes = [(ldap.MOD_REPLACE, 'description', group.description),
+                                 (ldap.MOD_REPLACE, 'nisNetgroupTriple', netgrouplist),
+                               ]
+            else:
+                ng_attributes = [(ldap.MOD_REPLACE, 'description', group.description),
+                               ]
+
+            # talk about our feelings
+            print "updating ldap Group record for %s" % (gdn)
+            print "updating ldap nisNetgroup record for %s" % (ngdn)
+
+            # slam the records into the server
+            ldcon.modify_s(gdn, g_attributes)
+            ldcon.modify_s(ngdn, ng_attributes)
+            ldcon.unbind()
+    
+        # give something back to the community
+        return "success"
+
     except ldap.LDAPError, e:
+        ldcon.unbind()
         raise LDAPError(e)
 
-    # close the LDAP connection
-    ldcon.unbind()
 
-
-def gremove(cfg, groupname):
+def gremove(cfg, group, server=None):
     """
     [description]
     remove a group
@@ -467,33 +505,51 @@ def gremove(cfg, groupname):
     [parameter info]
     required:
         cfg: the config object. useful everywhere
-        groupname: the group to remove 
+        group: the ORM group object
 
     [return value]
-    no explicit return 
+    returns "success"
     """
-
-    # get group object
-    g = vyvyan.validate.v_get_group_obj(cfg, groupname)
-    # an array made of the domain parts.
-    d = cfg.domain.split('.')
-
-    if g:
-        # get ldap master info, stitch together some dn info
-        ldap_master = __get_master(cfg, g.realm+'.'+g.site_id)
-        dn = "cn=%s,ou=%s,dc=" % (g.groupname, cfg.ldap_groups_ou)
-        dn += ',dc='.join(d)
-    else:
-        raise LDAPError("group \"%s\" not found, aborting" % groupname)
-
-    ldcon = ld_connect(cfg, ldap_master)
-
     try:
-        ldcon.delete_s(dn)
-        ldcon.unbind()
+        if group:
+            # construct an array made of the domain parts, stitch it back together in a way
+            # that LDAP will understand to create our group
+            domain_parts = group.domain.split('.')
+            gdn = "cn=%s,ou=%s,dc=" % (group.groupname, cfg.ldap_groups_ou)
+            gdn += ',dc='.join(domain_parts)
+            ngdn = "cn=%s,ou=%s,dc=" % (group.groupname, cfg.ldap_netgroups_ou)
+            ngdn += ',dc='.join(domain_parts)
+        else:
+            raise LDAPError("group object not supplied, aborting")
+    
+        # connect ldap server(s) and do stuff
+        if server:
+            servers = [server]
+        else:
+            servers = cfg.ldap_servers
+   
+        for myserver in servers:
+            # create a connection to the ldap server
+            ldcon = ld_connect(cfg, myserver)
+   
+            # talk about our feelings
+            print "removing ldap Group record for %s" % (gdn)
+            print "removing ldap nisNetgroup record for %s" % (ngdn)
+
+            # slam the records into the server
+            ldcon.delete_s(gdn)
+            ldcon.delete_s(ngdn)
+            ldcon.unbind()
+    
+        # give something back to the community
+        return "success"
+
     except ldap.LDAPError, e:
+        ldcon.unbind()
         raise LDAPError(e)
 
+# MARK
+# done to here
 
 def grefresh(cfg, realm_path):
     """
