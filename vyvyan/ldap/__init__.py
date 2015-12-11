@@ -41,22 +41,19 @@ def ld_connect(cfg, server):
     [return value]
     returns the open ldap connection object 
     """
-
-    admin_cn = cfg.ldap_admin_cn 
-    admin_pass = cfg.ldap_admin_pass
-    # i truly hate how needlessly complex ldap is. -dk
-    admin_dn = "cn=%s,dc=%s" % (admin_cn, ',dc='.join(cfg.default_domain.split('.')))
-    ld_server_string = "ldaps://"+server
-
-    # init the connection to the ldap server
     try:
-        ldcon = ldap.initialize(ld_server_string)
-        ldcon.simple_bind_s(admin_dn, cfg.ldap_admin_pass)
+      # stitch together some useful info
+      admin_dn = "cn=%s,dc=%s" % (cfg.ldap_admin_cn, ',dc='.join(cfg.default_domain.split('.')))
+      ld_server_string = "ldaps://"+server
+
+      # init the connection to the ldap server
+      ldcon = ldap.initialize(ld_server_string)
+      ldcon.simple_bind_s(admin_dn, cfg.ldap_admin_pass)
     except ldap.LDAPError, e:
-        cfg.log.debug("error connecting to ldap server: %s" % ldap_master)
-        cfg.log.debug("INFO DUMP:\n")
-        cfg.log.debug("admin_dn: %s\nld_server_string: %s" % (admin_dn, ld_server_string))
-        raise LDAPError(e)
+      cfg.log.debug("error connecting to ldap server: %s" % ldap_master)
+      cfg.log.debug("INFO DUMP:\n")
+      cfg.log.debug("admin_dn: %s\nld_server_string: %s" % (admin_dn, ld_server_string))
+      raise LDAPError(e)
 
     # we managed to open a connection. return it so it can be useful to others
     return ldcon
