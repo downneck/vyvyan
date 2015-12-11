@@ -68,9 +68,11 @@ def uadd(cfg, user, server=None):
     required:
         cfg: the config object. useful everywhere
         user: the ORM user object
+    optional: 
+        server: restrict activity to a single server
 
     [return value]
-    no explicit return 
+    returns "success"
     """
     # just checking....
     if user:
@@ -116,7 +118,7 @@ def uadd(cfg, user, server=None):
                          ]
         add_record += attributes
 
-        # connect ldap server(s) and do stuff
+        # connect to ldap server(s) and do stuff
         if server:
           servers = [server]
         else:
@@ -139,7 +141,7 @@ def uadd(cfg, user, server=None):
         raise LDAPError(e)
 
 
-def uremove(cfg, user):
+def uremove(cfg, user, server=None):
     """
     [description]
     remove a user
@@ -148,6 +150,8 @@ def uremove(cfg, user):
     required:
         cfg: the config object. useful everywhere
         user: the ORM user object
+    optional: 
+        server: restrict activity to a single server
 
     [return value]
     returns "success" 
@@ -161,15 +165,20 @@ def uremove(cfg, user):
         # construct an array made of the domain parts, stitch it back together in a way
         # that LDAP will understand
         domain_parts = user.domain.split('.')
-        dn = "uid=%s,ou=%s,dc=" % (user.username, cfg.ldap_users_ou)
-        dn += ',dc='.join(domain_parts)
+        udn = "uid=%s,ou=%s,dc=" % (user.username, cfg.ldap_users_ou)
+        udn += ',dc='.join(domain_parts)
 
-        # connect to each ldap server and do stuff
-        for server in cfg.ldap_servers:
+        # connect to ldap server(s) and do stuff
+        if server:
+          servers = [server]
+        else:
+          servers = cfg.ldap_servers
+        for server in cfg.servers:
             # create a connection to the server
             ldcon = ld_connect(cfg, server)
-            ldcon.delete_s(dn)
+            ldcon.delete_s(udn)
             ldcon.unbind()
+
         # give something back to the community
         return "success" 
     except ldap.LDAPError, e:
@@ -185,8 +194,8 @@ def urefresh_all(cfg, server=None):
     [parameter info]
     required:
         cfg: the config object. useful everywhere
-    optional:
-        server: restrict refresh to a single server
+    optional: 
+        server: restrict activity to a single server
 
     [return value]
     returns "success" 
@@ -254,6 +263,8 @@ def uupdate(cfg, user, server=None):
     required:
         cfg: the config object. useful everywhere
         user: the ORM user object
+    optional: 
+        server: restrict activity to a single server
 
     [return value]
     no explicit return 
@@ -329,6 +340,8 @@ def gadd(cfg, group, server=None):
     required:
         cfg: the config object. useful everywhere
         group: the ORM group object
+    optional: 
+        server: restrict activity to a single server
 
     [return value]
     returns "success"
@@ -371,9 +384,6 @@ def gadd(cfg, group, server=None):
             servers = cfg.ldap_servers
     
         for myserver in servers:
-            # create a connection to the ldap server
-            ldcon = ld_connect(cfg, myserver)
-   
             # construct the Group record to add 
             g_add_record = [('objectClass', ['top', 'posixGroup', 'groupOfNames'])]
             if memberoflist:
@@ -405,6 +415,9 @@ def gadd(cfg, group, server=None):
             g_add_record += g_attributes
             ng_add_record += ng_attributes
 
+            # create a connection to the ldap server
+            ldcon = ld_connect(cfg, myserver)
+   
             # talk about our feelings
             print "adding ldap Group record for %s" % (gdn)
             print "adding ldap nisNetgroup record for %s" % (ngdn)
@@ -431,6 +444,8 @@ def gupdate(cfg, group, server=None):
     required:
         cfg: the config object. useful everywhere
         group: the ORM group object
+    optional: 
+        server: restrict activity to a single server
 
     [return value]
     returns "success"
@@ -473,9 +488,6 @@ def gupdate(cfg, group, server=None):
             servers = cfg.ldap_servers
    
         for myserver in servers:
-            # create a connection to the ldap server
-            ldcon = ld_connect(cfg, myserver)
-   
             # construct the Group record to add 
             if memberoflist:
                 g_attributes = [(ldap.MOD_REPLACE, 'description', group.description),
@@ -497,6 +509,9 @@ def gupdate(cfg, group, server=None):
                 ng_attributes = [(ldap.MOD_REPLACE, 'description', group.description),
                                ]
 
+            # create a connection to the ldap server
+            ldcon = ld_connect(cfg, myserver)
+   
             # talk about our feelings
             print "updating ldap Group record for %s" % (gdn)
             print "updating ldap nisNetgroup record for %s" % (ngdn)
@@ -523,6 +538,8 @@ def gremove(cfg, group, server=None):
     required:
         cfg: the config object. useful everywhere
         group: the ORM group object
+    optional: 
+        server: restrict activity to a single server
 
     [return value]
     returns "success"
@@ -574,8 +591,8 @@ def grefresh_all(cfg, server=None):
     [parameter info]
     required:
         cfg: the config object. useful everywhere
-    optional:
-        server: restrict refresh to a single server
+    optional: 
+        server: restrict activity to a single server
 
     [return value]
     returns "success" 
@@ -588,7 +605,7 @@ def grefresh_all(cfg, server=None):
 
     # do the needful
     try:
-        # construct our user list
+        # construct our group list
         for group in cfg.dbsess.query(Groups).all()
             grouplist.append(group)
             if group.domain not in domainlist:
@@ -640,78 +657,104 @@ def grefresh_all(cfg, server=None):
         raise LDAPError(e)
 
 
-# MARK
-# done to here
-
-# ACHTUNG! this is long and super spooky. we may want this. we may not.
-
-
-def ldapimport(cfg, realm_path):
+def ldapimport(cfg, domain=None, server=None):
     """
     [description]
     import ldap data into vyvyan (DANGEROUS)
     in fact this is so dangerous, i'm leaving
     it unlinked for the moment. will need a LOT
     more sanity checking before it can be allowed
-    into the service
+    into service
 
     [parameter info]
     required:
         cfg: the config object. useful everywhere
-        realm_path: the realm.site_id to import
+    optional:
+        domain: just import a single domain's worth of userdata
+        server: manually set the server to import from. leaving blank will pick from your configured list.
 
     [return value]
-    no explicit return
+    returns "success"
     """
+    # some vars we'll need later
+    domainlist = []
+    grouplist = {}
+    netgrouplist = {}
+    userlist = {}
+    
 
-    fqn = vyvyan.validate.v_get_fqn(cfg, realm_path)
-    realm, site_id, domain = vyvyan.validate.v_split_fqn(fqn)
-    # an array made of the domain parts.
-    d = cfg.domain.split('.')
+    # check to see if groups or users tables are populated already. if so, bail out.
+    # we don't want to overwrite information already in vyvyan's database.
+    try:
+        if len(cfg.dbsess.query(Groups).all()) > 0 or len(cfg.dbsess.query(Users).all()) > 0:
+            raise LDAPError("Refusing to import into a populated database")
 
-    ldap_master = __get_master(cfg, realm+'.'+site_id)
-    dn ="ou=%s,dc=" % cfg.ldap_groups_ou
-    dn += ',dc='.join(d)
-    ldcon = ld_connect(cfg, ldap_master)
-    search = '(objectClass=posixGroup)'
-    attr = ['memberUid', 'gidNumber', 'description', 'cn']
-    # fetch all groups from the ldap master db
-    # we do groups first since they include member info which we can use
-    # to create users from. user entries don't contain any group info
-    for result in ldcon.search_s(dn, ldap.SCOPE_SUBTREE, search, attr):
-        # for groups with members in them, pop the members in a userlist
-        if result[1].has_key('memberUid'):
-            userlist = result[1]['memberUid']
+        # suss out the server situation
+        if not server:
+            server = cfg.ldap_servers[0]
+
+        # suss out the domain situation
+        if not domain:
+            # connect to ldap server and grab a list of all domains (ie. namingContext) 
+            ldcon = ld_connect(cfg, server)
+            search_filter = '(objectClass=namingContext)'
+            for result in ldcon.search_s('', ldap.SCOPE_BASE, search_filter, None):
+                # i kind of don't know that this will work. hopeful though.
+                # turn 'dc=' notation into a regular dotted domain
+                domainlist.append(result[1].replace(',dc=', '.').replace('dc=', ''))
+            ldcon.unbind()
         else:
-            userlist = None
-        groupname = result[1]['cn'][0]+'.'+fqn
-        # let's see if the group exists already in vyvyan
-        g = vyvyan.validate.v_get_group_obj(cfg, groupname)
-        if g:
-            # if the group exists, update its info with what's in ldap
-            print "group \"%s\" exists, updating with info from ldap" % (groupname)
-            g.description = result[1]['description'][0]
-            g.gid = int(result[1]['gidNumber'][0])
-            cfg.dbsess.add(g)
-            cfg.dbsess.commit()
-            # now that the group is updated, let's map users to it
-            # (if there are any users in the group)
-            if userlist:
-                for user in userlist:
-                    username = user+'.'+fqn
-                    u = vyvyan.validate.v_get_user_obj(cfg, username)
-                    if u:
-                        ugmap = cfg.dbsess.query(UserGroupMapping).\
-                        filter(UserGroupMapping.groups_id==g.id).\
-                        filter(UserGroupMapping.users_id==u.id).first()
-                        if ugmap:
-                            print "User-to-group mapping exists for %s in %s, skipping" % (u.username, g.groupname)
-                        else:
-                            print "mapping user \"%s\" into group \"%s\"" % (u.username+'.'+fqn, groupname+'.'+fqn)
-                            ugmap = UserGroupMapping(g.id, u.id)
-                            cfg.dbsess.add(ugmap)
-                            cfg.dbsess.commit()
-                    else:
+            domainlist = [domain]
+
+        # iterate over discovered domains
+        for domain in domainlist:
+            # validate the thing to make sure we didn't get something insane
+            v_domain(domain)
+
+            # add the domain to the grouplist and userlist
+            grouplist[domain] = [] 
+            netgrouplist[domain] = [] 
+            userlist[domain] = [] 
+
+            # make an array of the domain parts. stitch it back together in a way
+            # ldap will understand
+            # users dn
+            domain_parts = domain.split('.')
+            udn ="ou=%s,dc=" % cfg.ldap_users_ou
+            udn += ',dc='.join(domain_parts)
+            # groups dn
+            gdn ="ou=%s,dc=" % cfg.ldap_groups_ou
+            gdn += ',dc='.join(domain_parts)
+            # netgroups dn
+            ngdn ="ou=%s,dc=" % cfg.ldap_netgroups_ou
+            ngdn += ',dc='.join(domain_parts)
+            
+            # connect to ldap server and do stuff
+            ldcon = ld_connect(cfg, server)
+
+            # first, harvest groups
+            # don't know that we need this. keeping it here for posterity
+            #attr = ['memberUid', 'gidNumber', 'description', 'cn']
+            for result in ldcon.search_s(gdn, ldap.SCOPE_SUBTREE, '(objectClass=posixGroup)', None):
+                if result[1]:
+                    grouplist[domain].append(result[1])
+
+            # next, harvest netgroups
+            for result in ldcon.search_s(ngdn, ldap.SCOPE_SUBTREE, '(objectClass=nisNetgroup)', None):
+                if result[1]:
+                    netgrouplist[domain].append(result[1])
+
+            # finally, harvest users
+            for result in ldcon.search_s(udn, ldap.SCOPE_SUBTREE, '(objectClass=posixAccount)', None):
+                if result[1]:
+                    userlist[domain].append(result[1])
+
+
+# MARK
+# done to here
+
+
+
                         # fetch user info from ldap, stuff into new
                         # user, map user into group
                         dn = "uid=%s,ou=%s,dc=" % (user, cfg.ldap_users_ou)
@@ -729,6 +772,8 @@ def ldapimport(cfg, realm_path):
                             # pull the user data out of the ldap schema
                             username = result[0][1]['uid'][0]
                             if result[0][1]['sshPublicKey']:
+                                # THIS SHOULD USE THE LIST VERSION, NOT A SINGLE MEMBER
+                                # in case they have multiple keys
                                 ssh_public_key = result[0][1]['sshPublicKey'][0]
                             else:
                                 ssh_public_key = None
