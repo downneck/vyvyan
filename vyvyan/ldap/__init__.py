@@ -176,10 +176,11 @@ def uremove(cfg, user):
         # give something back to the community
         return "success" 
     except ldap.LDAPError, e:
+        ldcon.unbind()
         raise LDAPError(e)
 
 
-def urefresh_all(cfg):
+def urefresh_all(cfg, server=None):
     """
     [description]
     refresh the LDAP users database. drop all users, add them back in again
@@ -187,43 +188,62 @@ def urefresh_all(cfg):
     [parameter info]
     required:
         cfg: the config object. useful everywhere
+    optional:
+        server: restrict refresh to a single server
 
     [return value]
     returns "success" 
     """
-
-    # make an array made of the domain parts. stitch it back together in a way
-    # ldap will understand
-    domain_parts = cfg.default_domain.split('.')
-    dn ="ou=%s,dc=" % cfg.ldap_users_ou
-    dn += ',dc='.join(domain_parts)
-
     # some vars we'll need later
-    dnlist = []
+    domainlist = []
+    ulist = []
     userlist = []
 
+    # do the needful
     try:
         # construct our user list
         for user in cfg.dbsess.query(Users).\
         filter(Users.active==True).all():
             userlist.append(user)
+            if user.domain not in domainlist:
+                domainlist.append(user.domain)
 
-        # connect to each ldap server and do stuff
-        for myserver in cfg.ldap_servers:
-            # create a connection to the server
-            ldcon = ld_connect(cfg, myserver)
-            search = '(objectClass=person)'
-            # ALL USERS BALEETED
-            for result in ldcon.search_s(dn, ldap.SCOPE_SUBTREE, search):
-                dnlist.append(result[0])
-                for d in dnlist:
-                    ldcon.delete_s(d)
-            # add the users back in
-            for user in userlist:
-                uadd(cfg, user, server=myserver)
+        # suss out the server situation
+        if server:
+            servers = [server]
+        else:
+            servers = cfg.ldap_servers
+
+        # connect to ldap server(s) and do stuff
+        for myserver in servers:
+            for domain in domainlist:
+                # make an array of the domain parts. stitch it back together in a way
+                # ldap will understand
+                domain_parts = domain.split('.')
+                udn ="ou=%s,dc=" % cfg.ldap_users_ou
+                udn += ',dc='.join(domain_parts)
+
+                # create a connection to the server
+                ldcon = ld_connect(cfg, myserver)
+                search = '(objectClass=person)'
+
+                # ALL USERS BALEETED
+                for result in ldcon.search_s(udn, ldap.SCOPE_SUBTREE, search):
+                    ldcon.delete_s(result[0])
+
+                # unbind thyself
+                ldcon.unbind()
+
+                # add the users back in
+                for user in userlist:
+                    uadd(cfg, user, server=myserver)
+
         # give something back to the community
         return "success" 
+
+    # something horrible has happened.
     except ldap.LDAPError, e:
+        ldcon.unbind()
         raise LDAPError(e)
 
 
@@ -548,57 +568,85 @@ def gremove(cfg, group, server=None):
         ldcon.unbind()
         raise LDAPError(e)
 
-# MARK
-# done to here
 
-def grefresh(cfg, realm_path):
+def grefresh_all(cfg, server=None):
     """
     [description]
     refresh the LDAP groups database. drop all groups, add them back in again
 
-
     [parameter info]
     required:
         cfg: the config object. useful everywhere
-        realm_path: the realm.site_id to refresh
+    optional:
+        server: restrict refresh to a single server
 
     [return value]
-    no explicit return 
+    returns "success" 
     """
-
-    fqn = vyvyan.validate.v_get_fqn(cfg, realm_path)
-    realm, site_id, domain = vyvyan.validate.v_split_fqn(fqn)
-    # an array made of the domain parts.
-    d = cfg.domain.split('.')
-
-    dnlist = []
+    # some vars we'll need later
+    domainlist = []
+    glist = []
+    nglist = []
     grouplist = []
-    ldap_master = __get_master(cfg, realm+'.'+site_id)
-    dn ="ou=%s,dc=" % cfg.ldap_groups_ou
-    dn += ',dc='.join(d)
-    ldcon = ld_connect(cfg, ldap_master)
-    search = '(objectClass=posixGroup)'
 
-    for result in ldcon.search_s(dn, ldap.SCOPE_SUBTREE, search):
-        dnlist.append(result[0])
+    # do the needful
+    try:
+        # construct our user list
+        for group in cfg.dbsess.query(Groups).all()
+            grouplist.append(group)
+            if group.domain not in domainlist:
+                domainlist.append(group.domain)
 
-    print "This command will completely wipe out all groups in the ldap database on %s" % ldap_master
-    ans = raw_input("to completely refresh the groups in the ldap database type \"refresh_%s\": " % ldap_master)
+        # suss out the server situation
+        if server:
+            servers = [server]
+        else:
+            servers = cfg.ldap_servers
 
-    if ans != "refresh_%s" % ldap_master:
-        raise LDAPError("aborted by user input")
+        # connect to ldap server(s) and do stuff
+        for myserver in servers:
+            for domain in domainlist:
+                # make an array of the domain parts. stitch it back together in a way
+                # ldap will understand
+                domain_parts = domain.split('.')
+                gdn ="ou=%s,dc=" % cfg.ldap_groups_ou
+                gdn += ',dc='.join(domain_parts)
+                ngdn ="ou=%s,dc=" % cfg.ldap_netgroups_ou
+                ngdn += ',dc='.join(domain_parts)
 
-    for group in cfg.dbsess.query(Groups).\
-    filter(Groups.realm==realm).\
-    filter(Groups.site_id==site_id).all():
-        grouplist.append(group.groupname+'.'+realm+'.'+site_id)
+                # create a connection to the server
+                ldcon = ld_connect(cfg, myserver)
 
-    for dn in dnlist:
-        ldcon.delete_s(dn)
-    for group in grouplist:
-        gadd(cfg, group)
+                # ALL GROUPS BALEETED
+                search = '(objectClass=posixGroup)'
+                for result in ldcon.search_s(gdn, ldap.SCOPE_SUBTREE, search):
+                    ldcon.delete_s(result[0])
 
-    print "groups database has been dropped and refreshed using Vyvyan data."
+                # ALL NETGROUPS BALEETED 
+                search = '(objectClass=nisNetgroup)'
+                for result in ldcon.search_s(ngdn, ldap.SCOPE_SUBTREE, search):
+                    ldcon.delete_s(result[0])
+
+                # unbind thyself
+                ldcon.unbind()
+
+                # add the groups back in
+                for group in grouplist:
+                    gadd(cfg, group, server=myserver)
+
+        # give something back to the community
+        return "success" 
+
+    # something horrible has happened.
+    except ldap.LDAPError, e:
+        ldcon.unbind()
+        raise LDAPError(e)
+
+
+# MARK
+# done to here
+
+# ACHTUNG! this is long and super spooky. we may want this. we may not.
 
 
 def ldapimport(cfg, realm_path):
@@ -808,6 +856,16 @@ def ldapimport(cfg, realm_path):
                 cfg.dbsess.commit()
     else:
         print "No users found!"
+
+
+
+
+
+
+
+
+
+# ACHTUNG! bits below here may be useful. they will probably need to be moved into userdata
 
 def password_prompt(minchars, enctype):
     import getpass
