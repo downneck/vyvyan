@@ -185,7 +185,7 @@ class API_userdata:
                         'args': {
                             'domain': {
                                 'vartype': 'str',
-                                'desc': "LDAP domain to add user under (default: username@%s)" % cfg.default_domain,
+                                'desc': "LDAP domain to add user under (default: %s)" % cfg.default_domain,
                                 'ol': 'd',
                             },
                             'first_name': {
