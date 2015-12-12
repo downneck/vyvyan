@@ -21,6 +21,7 @@ all user interaction should be done in the vyvyan.API_userdata module
 import os
 import ldap
 import vyvyan.validate
+import vyvyan.API_userdata as userdata
 
 # db imports
 from vyvyan.vyvyan_models import *
@@ -740,6 +741,7 @@ def ldapimport(cfg, domain=None, server=None):
                     grouplist[domain].append(result[1])
 
             # next, harvest netgroups
+            # TODO: do we need these?
             for result in ldcon.search_s(ngdn, ldap.SCOPE_SUBTREE, '(objectClass=nisNetgroup)', None):
                 if result[1]:
                     netgrouplist[domain].append(result[1])
@@ -749,9 +751,47 @@ def ldapimport(cfg, domain=None, server=None):
                 if result[1]:
                     userlist[domain].append(result[1])
 
+            # clean up after ourselves
+            ldcon.unbind()
 
-# MARK
-# done to here
+            # create our groups first
+            # TODO: figure out how to snarf sudo commands and jam them into the query
+            # TODO: figure out how to inject SSHA passwords into the db
+            for domain in grouplist.keys():
+                for group in grouplist[domain]:
+                    query = {'domain': domain,
+                             'groupname': group['cn'],
+                             'gid': group['gidNumber'],
+                             'description': group['description'],
+                             'sudo_cmds': '',
+                            }
+                    userdata.gadd(cfg, query)
+
+                    # if this domain has users, make 'em.
+                    if domain in userlist.keys():
+                        for user in userlist[domain]:
+                            query = {'username', user['uid'],
+                                     'uid', user['uidNumber'],
+                                    }
+                            if 'gn' in user and user['gn']:
+                                query['first_name'] = user['gn']
+                            if 'sn' in user and user['sn']:
+                                query['last_name'] = user['sn']
+                            if 'homeDirectory' in user and user['homeDirectory']:
+                                query['hdir'] = user['homeDirectory']
+                            if 'loginShell' in user and user['loginShell']:
+                                query['shell'] = user['loginShell']
+                            if 'mail' in user and user['mail']:
+                                query['email'] = user['mail']
+
+                    #TODO: figure out ssh keys
+
+                    #TODO: add users to groups with utog
+
+
+#MARK
+# this shit ain't nearly done
+
 
 
 
