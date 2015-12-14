@@ -716,6 +716,7 @@ def ldapimport(cfg, domain=None, server=None):
             grouplist[domain] = [] 
             netgrouplist[domain] = [] 
             userlist[domain] = [] 
+            sudoerslist[domain] = [] 
 
             # make an array of the domain parts. stitch it back together in a way
             # ldap will understand
@@ -729,6 +730,10 @@ def ldapimport(cfg, domain=None, server=None):
             # netgroups dn
             ngdn ="ou=%s,dc=" % cfg.ldap_netgroups_ou
             ngdn += ',dc='.join(domain_parts)
+            # sudoers dn
+            sdn ="ou=%s,dc=" % cfg.ldap_sudoers_ou
+            sdn += ',dc='.join(domain_parts)
+
             
             # connect to ldap server and do stuff
             ldcon = ld_connect(cfg, server)
@@ -746,16 +751,33 @@ def ldapimport(cfg, domain=None, server=None):
                 if result[1]:
                     netgrouplist[domain].append(result[1])
 
-            # finally, harvest users
+            # next, harvest users
             for result in ldcon.search_s(udn, ldap.SCOPE_SUBTREE, '(objectClass=posixAccount)', None):
                 if result[1]:
                     userlist[domain].append(result[1])
 
+            # finally, harvest sudoers info
+            for result in ldcon.search_s(sdn, ldap.SCOPE_SUBTREE, '(objectClass=sudoRole)', None):
+                if result[1]:
+                    sudoerslist[domain].append(result[1])
+
             # clean up after ourselves
             ldcon.unbind()
 
+            # need to do a bunch of parsing and re-arranging of sudoers to hopefully
+            # figure out what group needs what sudo commands and suchlike
+            sudoergrouplist = {}
+            sudoeruserlist = {}
+            for sudoer in sudoerslist[domain]:
+                if sudoer['sudoUser']:
+                    for entry in sudoer['sudoUser']:
+                        if '%' in entry:
+                            sudoergrouplist[entry.replace('%', '')] = {'sudoHost': sudoer['sudoHost'], 'sudoCommand': sudoer['sudoCommand']}
+                        else:
+                            sudoeruserlist[entry.replace('%', '')] = {'sudoHost': sudoer['sudoHost'], 'sudoCommand': sudoer['sudoCommand']}
+
             # create our groups first
-            # TODO: figure out how to snarf sudo commands and jam them into the query
+            # TODO: figure out how to deal with sudo structure 
             # TODO: figure out how to inject SSHA passwords into the db
             for domain in grouplist.keys():
                 for group in grouplist[domain]:
