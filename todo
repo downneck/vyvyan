@@ -1,10 +1,10 @@
+sudoers: currently string, make it an array with its own mapping table 
+
 replace the concept of realm.site_id with domain to be more LDAPy
 
 add password validation rules
 
 add validation for domains
-
-rewrite sudoers mapping now that we don't have any servers in the DB. maybe. maybe rethink it
 
 pull over LDAP output module, integrate into main functionality
 
