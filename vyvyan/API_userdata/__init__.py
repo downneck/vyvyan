@@ -435,7 +435,7 @@ class API_userdata:
                             },
                             'sudo_cmds': {
                                 'vartype': 'str',
-                                'desc': 'commands users of this group are allowd to run as root',
+                                'desc': 'comma-delimited commands users of this group are allowd to run as root',
                                 'ol': 's',
                             },
                             'gid': {
@@ -508,7 +508,7 @@ class API_userdata:
                             },
                             'sudo_cmds': {
                                 'vartype': 'str',
-                                'desc': 'commands users of this group are allowd to run as root',
+                                'desc': 'comma-delimited commands users of this group are allowd to run as root',
                                 'ol': 's',
                             },
                             'gid': {
@@ -1413,9 +1413,9 @@ class API_userdata:
 
             # sudo commands. if "all" (case insensetive), translate to "ALL". if not and not blank, assign.  
             if 'sudo_cmds' in query.keys() and query['sudo_cmds']:
-                sudo_cmds = query['sudo_cmds']
-                if sudo_cmds.upper() == 'ALL':
-                    sudo_cmds = 'ALL'
+                sudo_cmds = query['sudo_cmds'].split(',')
+                if 'ALL' in map(str.upper, sudo_cmds):
+                    sudo_cmds = ['ALL']
             else:
                 sudo_cmds = None
 
@@ -1438,9 +1438,14 @@ class API_userdata:
                 gid = self.__next_available_gid(domain)
 
             # create the group object, push it to the db, return status
-            g = Groups(description, sudo_cmds, groupname, domain, gid)
+            g = Groups(description, groupname, domain, gid)
             self.cfg.dbsess.add(g)
             self.cfg.dbsess.commit()
+
+            # map any sudo commands to the group
+            if sudo_cmds:
+              self.__map_sudoers(g, sudo_cmds)
+
             return 'success'
 
         except Exception, e:
@@ -1493,12 +1498,18 @@ class API_userdata:
             # find us a groupname to delete, validation done in the __get_group_obj function
             g = self.__get_group_obj(groupname, domain) 
             if g:
+                # make sure the group is empty
                 if self.__get_users_by_group(groupname, domain):
                     self.cfg.log.debug("API_userdata/gremove: please remove all users from this group before deleting!")
                     raise UserdataError("API_userdata/gremove: please remove all users from this group before deleting!")
+                # unmap any existing commands
+                self.__unmap_sudoers(g) 
+                # delete the group
                 self.cfg.dbsess.delete(g)
+                # commit the transaction 
                 self.cfg.dbsess.commit()
                 self.cfg.log.debug("API_userdata/gremove: deleted group %s from domain %s" % (groupname, domain))
+                # declare victory
                 return "success"
             else:
                 self.cfg.log.debug("API_userdata/gremove: group %s not found in domain %s" % (groupname, domain))
@@ -1561,11 +1572,11 @@ class API_userdata:
             if 'description' in query.keys() and query['description']:
                 g.description = query['description']
 
-            # sudo commands. if "all" (case insensetive), translate to "ALL". if not and not blank, assign
+            # sudo commands. if "all" (case insensetive), translate to "ALL". if not and not blank, assign.  
             if 'sudo_cmds' in query.keys() and query['sudo_cmds']:
-                g.sudo_cmds = query['sudo_cmds']
-                if g.sudo_cmds.upper() == 'ALL':
-                    g.sudo_cmds = 'ALL'
+                sudo_cmds = query['sudo_cmds'].split(',')
+                if 'ALL' in map(str.upper, sudo_cmds):
+                    sudo_cmds = ['ALL']
 
             # gid, validate or leave alone 
             if 'gid' in query.keys() and query['gid']:
@@ -1577,6 +1588,13 @@ class API_userdata:
             # push the modified group object to the db, return status
             self.cfg.dbsess.add(g)
             self.cfg.dbsess.commit()
+
+            # remap sudoers commands
+            # NOTE: you must provide the entire sudo_cmds array each time you modify a group
+            # or it will delete existing commands
+            self.__map_sudoers(g, sudo_cmds)
+
+            # declare victory
             return 'success'
 
         except Exception, e:
@@ -1624,12 +1642,19 @@ class API_userdata:
 
             # find us a groupname to clone, validation done in the __get_group_obj function
             g = self.__get_group_obj(groupname, domain) 
+            
+            # get sudo commands for the group
+            sudo_cmds = []
+            for gsmap in self.cfg.dbsess.query(GroupSudocommandMapping).filter(GroupSudocommandMapping.groups_id==group.id).all():
+              sudo_cmds.append(gsmap.sudocommand)
+
+            # put it all together
             if g:
                 query = {
                     'groupname': groupname,
                     'domain': newdomain,
                     'gid': g.gid,
-                    'sudo_cmds': g.sudo_cmds,
+                    'sudo_cmds': ','.join(sudo_cmds),
                     'description': g.description,
                 }
                 self.gadd(query) 
@@ -1863,70 +1888,6 @@ class API_userdata:
             raise UserdataError("API_userdata/__get_group_obj: error: %s" % e)
 
 
-    # semi-local. might get promoted to nonlocal some day
-    def _gen_sudoers_groups(self, unqdn):
-        """
-        [description]
-        generates the group lines for sudoers
-    
-        [parameter info]
-        required:
-            unqdn: the unqualified domain name of the host we want to generate for
-    
-        [return value]
-        returns list of sudoers lines or None 
-        """
-        try:
-            kvobj = vyvyan.API_kv.API_kv(self.cfg)
-            # get the server entry
-            s = vyvyan.validate.v_get_server_obj(self.cfg, unqdn)
-            if s:
-                unqdn = '.'.join([s.hostname,s.realm,s.site_id])
-                # probably don't need this any more
-                #fqdn = '.'.join([unqdn,self.cfg.domain])
-            else:
-                raise UsersError("Host does not exist: %s" % unqdn)
-        
-            kquery = {'unqdn': unqdn}
-            kquery['key'] = 'tag'
-            kvs = kvobj.collect(kquery)
-            groups = []
-        
-            # get sudo groups for all tags in kv
-            if kvs:
-                for kv in kvs:
-                    groupname = kv['value']+'_sudo.'+s.realm+'.'+s.site_id
-                    g = self.__get_group_obj(groupname, domain)
-                    if g:
-                        groups.append(g)
-                    else:
-                        pass
-        
-            # get sudo group for primary tag
-            g = self.__get_group_obj(s.tag+'_sudo.'+s.realm+'.'+s.site_id)
-            if g:
-                groups.append(g)
-            else:
-                pass
-        
-            # stitch it all together
-            sudoers = []
-            for g in groups:
-                if self.cfg.sudo_nopass and g.sudo_cmds:
-                    sudoers.append("%%%s ALL=(ALL) NOPASSWD:%s" % (g.groupname, g.sudo_cmds))
-                elif g.sudo_cmds:
-                    sudoers.append("%%%s ALL=(ALL) %s" % (g.groupname, g.sudo_cmds))
-                else:
-                    pass
-            if sudoers:
-                return sudoers
-            else:
-                return None
-
-        except Exception, e:
-            raise UserdataError("API_userdata/_gen_sudoers_groups: %s" % e)
-
-
     def __next_available_uid(self, domain):
         """
         [description]
@@ -2053,8 +2014,8 @@ class API_userdata:
 
             # add each group mapped to the user to a list, return it
             if maplist:
-                for map in maplist:
-                    glist.append(self.cfg.dbsess.query(Groups).filter(Groups.id==map.groups_id).first())
+                for ugmap in maplist:
+                    glist.append(self.cfg.dbsess.query(Groups).filter(Groups.id==ugmap.groups_id).first())
             return glist
 
         except Exception, e:
@@ -2089,11 +2050,95 @@ class API_userdata:
 
             # add each user mapped to the group to a list, return it
             if maplist:
-                for map in maplist:
-                    ulist.append(self.cfg.dbsess.query(Users).filter(Users.id==map.users_id).first())
+                for ugmap in maplist:
+                    ulist.append(self.cfg.dbsess.query(Users).filter(Users.id==ugmap.users_id).first())
             return ulist
 
         except Exception, e:
             raise UserdataError("API_userdata/__get_users_by_group: %s" % e)
 
 
+    def __map_sudoers(self, group, sudo_cmds):
+        """
+        [description]
+        map a set of sudo commands to a group
+
+        [parameter info]
+        required:
+            group: the ORM object of the group we want to map
+            sudo_cmds: a list of strings representing the commands to map to the group 
+
+        [return]
+        Returns "success" if successful, raises an error if unsuccessful 
+        """
+        try:
+            # for sanity's sake
+            if not group:
+                self.cfg.log.debug("API_userdata/__map_sudoers: group not found, missing parameter")
+                raise UserdataError("API_userdata/__map_sudoers: group not found, missing parameter")
+            elif not sudo_cmds:
+                self.cfg.log.debug("API_userdata/__map_sudoers: sudo_cmds not found, missing parameter")
+                raise UserdataError("API_userdata/__map_sudoers: sudo_cmds not found, missing parameter")
+            else:
+
+                # loop over commands and map them to the group
+                for command in sudo_cmds:
+                    if not self.cfg.dbsess.query(GroupSudocommandMapping).\
+                    filter(GroupSudocommandMapping.sudocommand==command).\
+                    filter(GroupSudocommandMapping.groups_id==group.id).first():
+                      gsmap = GroupSudocommandMapping(group.id, command)
+                      self.cfg.dbsess.add(gsmap)
+
+                # loop over existing mappings and ensure they're valid. remove any invalid mappings
+                for gsmap in self.cfg.dbsess.query(GroupSudocommandMapping).filter(GroupSudocommandMapping.groups_id==group.id).all():
+                  if gsmap.sudocommand not in sudo_cmds:
+                    self.cfg.dbsess.delete(gsmap)
+
+                # commit our transaction
+                self.cfg.dbsess.commit()
+
+                # declare victory
+                return 'success'
+
+        except Exception, e:
+            # something odd happened, explode violently
+            self.cfg.dbsess.rollback()
+            self.cfg.log.debug("API_userdata/__map_sudoers: error: %s" % e)
+            raise UserdataError("API_userdata/__map_sudoers: error: %s" % e)
+
+
+    def __unmap_sudoers(self, group):
+        """
+        [description]
+        map a set of sudo commands to a group
+
+        [parameter info]
+        required:
+            group: the ORM object of the group we want to unmap
+
+        [return]
+        Returns "success" if successful, raises an error if unsuccessful 
+        """
+        try:
+
+            # for sanity's sake
+            if not group:
+                self.cfg.log.debug("API_userdata/__unmap_sudoers: group not found, missing parameter")
+                raise UserdataError("API_userdata/__unmap_sudoers: group not found, missing parameter")
+
+            # loop over existing mappings and remove
+            else:
+                for gsmap in self.cfg.dbsess.query(GroupSudocommandMapping).filter(GroupSudocommandMapping.groups_id==group.id).all():
+                  self.cfg.dbsess.delete(gsmap)
+
+                # commit our transaction
+                self.cfg.dbsess.commit()
+
+                # declare victory
+                return 'success'
+
+        except Exception, e:
+            # something odd happened, explode violently
+            self.cfg.dbsess.rollback()
+            self.cfg.log.debug("API_userdata/__unmap_sudoers: error: %s" % e)
+            raise UserdataError("API_userdata/__unmap_sudoers: error: %s" % e)
