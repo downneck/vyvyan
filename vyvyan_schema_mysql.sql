@@ -32,6 +32,24 @@ CREATE TABLE `groups` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `group_sudocommand_mapping`
+--
+
+DROP TABLE IF EXISTS `group_sudocommand_mapping`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `group_sudocommand_mapping` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `groups_id` bigint(20) unsigned NOT NULL,
+  `sudocommand` varchar(100) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `id` (`id`),
+  KEY `group_supdocommand_mapping_groups_id_fkey` (`groups_id`),
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+
+--
 -- Table structure for table `user_group_mapping`
 --
 
@@ -40,8 +58,8 @@ DROP TABLE IF EXISTS `user_group_mapping`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `user_group_mapping` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-  `groups_id` bigint(20) unsigned DEFAULT NULL,
-  `users_id` bigint(20) unsigned DEFAULT NULL,
+  `groups_id` bigint(20) unsigned NOT NULL,
+  `users_id` bigint(20) unsigned NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `id` (`id`),
   KEY `user_group_mapping_groups_id_fkey` (`groups_id`),
