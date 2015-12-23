@@ -1592,7 +1592,8 @@ class API_userdata:
             # remap sudoers commands
             # NOTE: you must provide the entire sudo_cmds array each time you modify a group
             # or it will delete existing commands
-            self.__map_sudoers(g, sudo_cmds)
+            if sudo_cmds:
+              self.__map_sudoers(g, sudo_cmds)
 
             # declare victory
             return 'success'
