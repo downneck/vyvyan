@@ -777,7 +777,6 @@ def ldapimport(cfg, domain=None, server=None):
                             sudoeruserlist[entry] = {'sudoHost': sudoer['sudoHost'], 'sudoCommand': sudoer['sudoCommand']}
 
             # create our groups first
-            # TODO: figure out how to deal with sudo structure. especially sudoCommand array structure. 
             # TODO: figure out how to inject SSHA passwords into the db
             for domain in grouplist.keys():
                 for group in grouplist[domain]:
@@ -788,6 +787,8 @@ def ldapimport(cfg, domain=None, server=None):
                              'sudo_cmds': [],
                             }
                     # figure out if the group has sudo commands associated with it
+                    # NOTE: we don't make user-based sudoers entries so we'll need a way
+                    # to inform the end user that there are commands that will be lost
                     if group['cn'] in sudoergrouplist.keys():
                         query['sudo_cmds'] = sudoergrouplist[group['cn']]['sudoCommand']
                     userdata.gadd(cfg, query)
