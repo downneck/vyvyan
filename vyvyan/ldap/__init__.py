@@ -819,22 +819,6 @@ def ldapimport(cfg, domain=None, server=None):
 # this shit ain't nearly done
 
 
-
-
-                        # fetch user info from ldap, stuff into new
-                        # user, map user into group
-                        dn = "uid=%s,ou=%s,dc=" % (user, cfg.ldap_users_ou)
-                        dn += ',dc='.join(d)
-                        search = '(objectClass=person)'
-                        print "fetching user data for: %s" % dn
-                        try:
-                            result = ldcon.search_s(dn, ldap.SCOPE_BASE, search)
-                        except ldap.LDAPError, e:
-                            print "Entity not found, skipping."
-                            print e
-                            result = False
-                        if result:
-                            print "user \"%s\" does not exist, creating from ldap info and mapping into group \"%s\"" % (user+'.'+fqn, groupname+'.'+fqn)
                             # pull the user data out of the ldap schema
                             username = result[0][1]['uid'][0]
                             if result[0][1]['sshPublicKey']:
