@@ -64,7 +64,6 @@ class Groups(Base):
     __tablename__ = 'groups'
 
     description = Column(String)
-    sudo_cmds = Column(String)
     groupname = Column(String, primary_key=True)
     domain = Column(String, primary_key=True)
     gid = Column(Integer)
@@ -73,9 +72,8 @@ class Groups(Base):
     def to_dict(self):
         return dict([(k, getattr(self, k)) for k in self.__dict__.keys() if not k.startswith("_")])
 
-    def __init__(self, description, sudo_cmds, groupname, domain, gid):
+    def __init__(self, description, groupname, domain, gid):
         self.description = description
-        self.sudo_cmds = sudo_cmds
         self.groupname = groupname
         self.domain = domain
         self.gid = gid
@@ -97,6 +95,23 @@ class UserGroupMapping(Base):
     def __init__(self, groups_id, users_id):
         self.groups_id = groups_id
         self.users_id = users_id
+
+    def __repr__(self):
+        return "<UserGroupMapping('%s', '%s')>" % (self.groups_id, self.users_id)
+
+class GroupSudocommandMapping(Base):
+    __tablename__ = 'group_sudocommand_mapping'
+
+    groups_id = Column(Integer, ForeignKey(Groups.id))
+    sudocommand = Column(String)
+    id = Column(Integer, primary_key=True)
+
+    def to_dict(self):
+        return dict([(k, getattr(self, k)) for k in self.__dict__.keys() if not k.startswith("_")])
+
+    def __init__(self, groups_id, sudocommand):
+        self.groups_id = groups_id
+        self.sudocommand = sudocommand
 
     def __repr__(self):
         return "<UserGroupMapping('%s', '%s')>" % (self.groups_id, self.users_id)
