@@ -1503,10 +1503,10 @@ class API_userdata:
                     self.cfg.log.debug("API_userdata/gremove: please remove all users from this group before deleting!")
                     raise UserdataError("API_userdata/gremove: please remove all users from this group before deleting!")
                 # unmap any existing commands
-                self.__unmap_sudoers(g) 
+                self.__unmap_sudoers(g)
                 # delete the group
                 self.cfg.dbsess.delete(g)
-                # commit the transaction 
+                # commit the transaction
                 self.cfg.dbsess.commit()
                 self.cfg.log.debug("API_userdata/gremove: deleted group %s from domain %s" % (groupname, domain))
                 # declare victory
