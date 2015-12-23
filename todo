@@ -1,4 +1,5 @@
 sudoers: currently string, make it an array with its own mapping table 
+sudoers: inform end user after import that sudoers commands assigned to users (not groups) will be lost
 
 replace the concept of realm.site_id with domain to be more LDAPy
 
