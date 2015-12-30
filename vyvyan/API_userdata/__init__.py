@@ -498,13 +498,13 @@ class API_userdata:
                         'args': {
                             'domain': {
                                 'vartype': 'str',
-                                'desc': 'domain to delete the group from',
+                                'desc': 'domain to which the group belongs',
                                 'ol': 'd',
                             },
                             'description': {
                                 'vartype': 'str',
                                 'desc': 'a description of the group',
-                                'ol': 'd',
+                                'ol': 'e',
                             },
                             'sudo_cmds': {
                                 'vartype': 'str',
@@ -1354,6 +1354,16 @@ class API_userdata:
                 for u in ulist:
                     ret['users'].append(u.to_dict())
 
+            # now that we know the group exists, we can see if it's populated with users
+            sclist = self.__get_sudo_cmds_by_group(groupname, domain)
+            if sclist:
+                commands = []
+                for sc in sclist: 
+                    commands.append(sc.sudocommand)
+                ret['sudo_cmds'] = ','.join(commands)
+            else:
+                ret['sudo_cmds'] = "no commands"
+
             # return is populated, return it
             return ret
 
@@ -2059,6 +2069,37 @@ class API_userdata:
             raise UserdataError("API_userdata/__get_users_by_group: %s" % e)
 
 
+    def __get_sudo_cmds_by_group(self, groupname, domain):
+        """
+        [description]
+        searches the db for user-group mappings by groupname 
+    
+        [parameter info]
+        required:
+            groupname: the groupname to search for 
+            domain: the domain to search in 
+    
+        [return value]
+        returns a list of groups_sudocommands ORMobjects or nothing 
+        """
+        try:
+            # fetch our group
+            g = self.__get_group_obj(groupname, domain)
+            if not g:
+                self.cfg.log.debug("API_userdata/__get_sudo_cmds_by_group: group %s not found in %s" % (groupname, domain))
+                raise UserdataError("API_userdata/__get_sudo_cmds_by_user: group %s not found in %s" % (groupname, domain))
+
+            # get all sudo commands mapped to this group
+            maplist = []
+            maplist = self.cfg.dbsess.query(GroupSudocommandMapping).\
+                filter(GroupSudocommandMapping.groups_id==g.id).all()
+
+            return maplist
+
+        except Exception, e:
+            raise UserdataError("API_userdata/__get_sudo_commands_by_group: %s" % e)
+
+
     def __map_sudoers(self, group, sudo_cmds):
         """
         [description]
@@ -2082,8 +2123,14 @@ class API_userdata:
                 raise UserdataError("API_userdata/__map_sudoers: sudo_cmds not found, missing parameter")
             else:
 
-                # loop over commands and map them to the group
+                # housekeeping
+                clean_sudo_cmds = [] 
                 for command in sudo_cmds:
+                    command = command.strip(' \t\n\r')
+                    clean_sudo_cmds.append(command)
+
+                # loop over commands and map them to the group
+                for command in clean_sudo_cmds:
                     if not self.cfg.dbsess.query(GroupSudocommandMapping).\
                     filter(GroupSudocommandMapping.sudocommand==command).\
                     filter(GroupSudocommandMapping.groups_id==group.id).first():
@@ -2092,7 +2139,7 @@ class API_userdata:
 
                 # loop over existing mappings and ensure they're valid. remove any invalid mappings
                 for gsmap in self.cfg.dbsess.query(GroupSudocommandMapping).filter(GroupSudocommandMapping.groups_id==group.id).all():
-                  if gsmap.sudocommand not in sudo_cmds:
+                  if gsmap.sudocommand not in clean_sudo_cmds:
                     self.cfg.dbsess.delete(gsmap)
 
                 # commit our transaction

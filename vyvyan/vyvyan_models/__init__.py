@@ -114,4 +114,4 @@ class GroupSudocommandMapping(Base):
         self.sudocommand = sudocommand
 
     def __repr__(self):
-        return "<UserGroupMapping('%s', '%s')>" % (self.groups_id, self.users_id)
+        return "<UserGroupMapping('%s', '%s')>" % (self.groups_id, self.sudocommand)

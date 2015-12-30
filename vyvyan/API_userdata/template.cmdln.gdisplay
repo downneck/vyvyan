@@ -2,5 +2,5 @@
 groupname, gid:     {{r['data']['group']['groupname']}}, {{r['data']['group']['gid']}}
 domain:             {{r['data']['group']['domain']}}
 description:        {{r['data']['group']['description']}}
-sudo commands:      {{r['data']['group']['sudo_cmds']}}
+sudo commands:      {{r['data']['sudo_cmds']}}
 users:              {% for u in r['data']['users'] %}{{u['username']}} {% endfor %}
