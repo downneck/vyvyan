@@ -44,8 +44,8 @@ CREATE TABLE `group_sudocommand_mapping` (
   `sudocommand` varchar(100) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `id` (`id`),
-  KEY `group_supdocommand_mapping_groups_id_fkey` (`groups_id`),
-) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+  KEY `group_supdocommand_mapping_groups_id_fkey` (`groups_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 
@@ -64,7 +64,7 @@ CREATE TABLE `user_group_mapping` (
   UNIQUE KEY `id` (`id`),
   KEY `user_group_mapping_groups_id_fkey` (`groups_id`),
   KEY `user_group_mapping_users_id_fkey` (`users_id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
