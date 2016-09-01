@@ -310,11 +310,18 @@ if __name__ == "__main__":
     # write out the command line we were called with to an audit log
     try:
         alog = open(cfg.logdir+'/'+cfg.audit_log_file, 'a')
+    except Exception, e:
+        print "Exception: " + str(e)
+        print "Problem writing to audit log file!"
+        print "Audit file configured as: " + cfg.audit_log_file
+        alog.close()
+        sys.exit(1)
+    try:
         ltz = time.tzname[time.daylight]
         tformat = "%Y-%m-%d %H:%M:%S"
         timestamp = datetime.datetime.now()
         if sys.stdin.isatty():
-            username = os.getlogin()
+            username = os.environ['LOGNAME']
         else:
             username = "nottyUID=" + str(os.geteuid())
         command_run = ' '.join(sys.argv)
